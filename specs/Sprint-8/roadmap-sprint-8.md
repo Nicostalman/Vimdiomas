@@ -93,8 +93,15 @@ passes `doctor` and then fails to compile."
   for about eight lines).
 - How the check reports which packages are missing, so the command installs
   only those.
-- Whether the BasicTeX package list is verified here or in M3. It's only
-  needed once M3 installs BasicTeX, but it's found the same way.
+
+**Already known (BasicTeX check, 2026-10-06, see notes, Assumptions).** The
+template loads fontspec, xeCJK (Chinese only), lmodern (and its `.otf`
+fonts), geometry, longtable, caption, array and xcolor. Stock BasicTeX 2026
+has all of them except xeCJK, so on macOS the new check passes on a fresh
+BasicTeX and xeCJK stays the only thing missing. Arch is where the new check
+earns its keep: a bare `texlive-xetex` lacks caption, xcolor and lmodern's
+fonts (Sprint 5 M7). The test notebooks in `tests/fixtures` (three Chinese,
+two German) are the compile set the package list was confirmed against.
 
 **Done when.** A TeX that's missing one of the template's packages fails the
 check on step 1 and in `vimdiomas doctor`, with the package named. A complete
@@ -127,8 +134,20 @@ commands".
   - **Arch:** one `sudo pacman -S --needed …` for everything missing.
 - The failure lines no longer show commands or install hints ("No instructions
   should be shown"). They say what's missing and nothing else.
-- The recheck finds a TeX installed during this session even though the wizard's
-  `PATH` predates it (BasicTeX's `/Library/TeX/texbin`).
+- **Fix: step 3's xeCJK offer fails on a fresh BasicTeX.** `platform/macos.py`'s
+  `INSTALL_HINTS["xecjk"]` is `sudo tlmgr install xecjk` alone, and a fresh
+  BasicTeX's `tlmgr` refuses it until `tlmgr update --self` has run (found in
+  the BasicTeX check). Once M3 installs BasicTeX, ticking Chinese at step 3
+  would run that command, fail, and refuse the language. The xeCJK install
+  becomes `sudo tlmgr update --self` followed by `sudo tlmgr install xecjk`,
+  the same sequence step 1 uses, through the one code path both share.
+- The recheck finds a TeX installed during this session even though the
+  wizard's `PATH` predates it. BasicTeX's binaries live in `/Library/TeX/texbin`
+  (linked into `/usr/local/texlive/<year>basic`), which only a new shell has on
+  `PATH`, through `/etc/paths.d/TeX`. This covers `xelatex`, `kpsewhich` (the
+  package checks) and `tlmgr` (the next command in the same run), not only
+  the check. Without it, the `tlmgr` step right after `brew install --cask
+  basictex` would fail with "command not found".
 - `design.md`'s *A language's missing dependencies* and the dependency
   conventions are updated: it's no longer true that "only a language's own
   dependencies are ever offered for installation".
@@ -156,7 +175,9 @@ commands".
 the README's *Installing* and pressing *Install missing* leaves every required
 and optional check `ok`, and a Chinese notebook compiles once step 3 has
 installed its dependencies. On macOS, a missing dependency is installed by the
-button and passes the recheck without restarting the wizard. No install command
+button and passes the recheck without restarting the wizard; on a Mac with no
+TeX, *Install missing* followed by ticking Chinese at step 3 ends with a
+Chinese notebook that compiles, with no new terminal opened. No install command
 or hint appears anywhere on step 1. The full test suite passes.
 
 ---
