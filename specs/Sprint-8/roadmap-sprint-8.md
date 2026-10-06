@@ -119,8 +119,11 @@ commands".
   password, then rechecks.
   - **macOS:** `brew install` for pandoc, poppler (`pdftoppm`), neovim and
     macism. For TeX: nothing if `xelatex` is already there (MacTeX or any other
-    TeX), otherwise `brew install --cask basictex`. Then `tlmgr install` for
-    whatever M2's check reports missing.
+    TeX), otherwise `brew install --cask basictex`. Then `sudo tlmgr update
+    --self` (a fresh BasicTeX's `tlmgr` refuses to install anything until it
+    has updated itself) and `sudo tlmgr install` for whatever M2's check
+    reports missing: on stock BasicTeX that is only xeCJK (verified, see
+    notes, Assumptions). `sudo` because the `.pkg` installs a root-owned tree.
   - **Arch:** one `sudo pacman -S --needed …` for everything missing.
 - The failure lines no longer show commands or install hints ("No instructions
   should be shown"). They say what's missing and nothing else.
