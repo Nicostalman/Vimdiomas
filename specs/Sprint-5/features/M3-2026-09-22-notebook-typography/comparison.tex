@@ -1,0 +1,27 @@
+% One-off comparison document for M3's font decision. Not shipped code —
+% compiled directly with xelatex, not through idiomas' pandoc pipeline.
+\documentclass[12pt]{article}
+\usepackage{fontspec}
+\usepackage{xeCJK}
+\usepackage[margin=1in]{geometry}
+\usepackage{xcolor}
+\pagestyle{empty}
+\setCJKmainfont{Heiti SC}
+
+\newcommand{\sample}[3]{%
+  \par\noindent{\Large\bfseries #1}\par\vspace{0.3em}%
+  \begingroup
+    {\Huge\bfseries\CJKfontspec[#2]{#3}天气}\par\vspace{0.15em}%
+    {\large\color{gray!70!black} ti\={a}n q\`{i}}\par\vspace{0.4em}%
+  \endgroup
+  {\Large clima}\par\vspace{1.5em}\hrule\vspace{1.5em}%
+}
+
+\begin{document}
+
+\sample{STHeiti Light}{Path=/System/Library/Fonts/,Extension=.ttc}{STHeiti Light}
+\sample{STHeiti Medium}{Path=/System/Library/Fonts/,Extension=.ttc}{STHeiti Medium}
+\sample{Hiragino Sans GB}{}{Hiragino Sans GB}
+\sample{Songti SC}{}{Songti SC}
+
+\end{document}

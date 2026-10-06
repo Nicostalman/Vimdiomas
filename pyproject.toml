@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vimdiomas"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = ["pypinyin>=0.51", "textual>=0.80"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pypdf>=5", "pytest-asyncio>=0.24"]
+
+[project.scripts]
+vimdiomas = "vimdiomas.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+vimdiomas = ["templates/*.tex", "tui/*.tcss"]
+
+[tool.pytest.ini_options]
+markers = ["integration: exercises real external tools (pandoc/xelatex), not just Python code"]
+asyncio_mode = "auto"

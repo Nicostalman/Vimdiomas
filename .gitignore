@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+.DS_Store
+postponedfeatures.md
+bug-report-2026-09-29.md
+specs/Sprint-*/guidelines/backlog.md
+specs/Sprint-2/guidelines/motivation.md

@@ -1,0 +1,306 @@
+MenuScreen Backpanel {
+    align: center middle;
+}
+
+DependenciesScreen Backpanel,
+NameScreen Backpanel,
+LanguagesScreen Backpanel,
+TreeLocationScreen Backpanel,
+InputMethodScreen Backpanel,
+PathScreen Backpanel,
+InputMethodSettingsScreen Backpanel {
+    align: center middle;
+}
+
+.wizard-panel {
+    width: 60;
+    height: auto;
+    padding: 1 2;
+}
+
+/* Wider than the other wizard steps: an input source's option carries its
+   raw ID next to its name, which a 60-wide panel cuts off (Sprint 4 M6). */
+InputMethodScreen .wizard-panel,
+InputMethodSettingsScreen .wizard-panel {
+    width: 76;
+}
+
+.wizard-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+.wizard-prompt {
+    color: $text-muted;
+    margin-bottom: 1;
+}
+
+.wizard-panel Button {
+    margin-top: 1;
+}
+
+.wizard-panel Checkbox {
+    width: 20;
+}
+
+.wizard-error {
+    color: $text-error;
+    margin-top: 1;
+}
+
+.wizard-advisory {
+    color: $text-warning;
+    margin-top: 1;
+}
+
+/* The field itself draws no border: the panel around it owns the frame
+   (design.md), and its display line dims when focus leaves, the same way a
+   tree's cursor and a text field's caret do. */
+.select-field {
+    height: auto;
+    margin-bottom: 1;
+}
+
+.select-display {
+    padding: 0 1;
+}
+
+.select-field:focus .select-display {
+    background: $primary-muted;
+}
+
+/* The deployed list. Grows with its content; the panel or backpanel it sits
+   in scrolls when that makes the screen overflow (M1, screen real estate). */
+.select-list {
+    height: auto;
+    margin: 0 1;
+    border: none;
+    background: $surface;
+}
+
+.backpanel-flat VimOptionList {
+    width: 40;
+    height: auto;
+    border: none;
+    padding: 1 2;
+}
+
+PlaceholderScreen Backpanel {
+    align: center middle;
+}
+
+PlaceholderScreen Panel {
+    width: auto;
+    height: auto;
+}
+
+PlaceholderScreen Static {
+    width: auto;
+    padding: 1 2;
+}
+
+EntryScreen Horizontal {
+    height: 1fr;
+}
+
+VimTree {
+    width: auto;
+    border: round $accent;
+    overflow-x: hidden;
+}
+
+.panel {
+    border: round $panel;
+    /* Scrollbar only when content overflows, no reserved gutter otherwise
+       (M1, screen real estate) — replaces the old per-screen height caps. */
+    overflow-y: auto;
+}
+
+.panel:focus, .panel:focus-within {
+    border: round $accent;
+}
+
+.panel VimTree {
+    border: none;
+}
+
+.backpanel {
+    /* Always accent, unlike `.panel` — the backpanel's own focus state is
+       already visible indirectly (every panel inside it dims when focus
+       moves away from the backpanel), so its own border never needs to
+       change to communicate that. */
+    border: round $accent;
+    /* Scrollbar only when content overflows, no reserved gutter otherwise
+       (M1, screen real estate) — covers flat menus and a backpanel whose
+       panels together overflow it. */
+    overflow-y: auto;
+}
+
+#tree-panel {
+    width: auto;
+    max-width: 60%;
+}
+
+#entry-form {
+    width: 60%;
+    padding: 1 2;
+}
+
+#entry-form TextField {
+    width: 40;
+}
+
+TextField {
+    margin-bottom: 1;
+}
+
+#create-button {
+    margin-bottom: 1;
+}
+
+.footer-hint {
+    color: $text-muted;
+}
+
+.menu-legend {
+    width: 40;
+    height: 2;
+    padding: 0 2;
+    margin: 1 0 0 0;
+    text-style: italic;
+}
+
+#target-warning {
+    color: $text-warning;
+    margin-bottom: 1;
+}
+
+Input > .input--cursor {
+    background: $accent 40%;
+    text-style: none;
+}
+
+BrowseScreen #query-panel,
+BrowseScreen #tag-panel {
+    height: auto;
+}
+
+/* Exactly one row of content tall (requirements.md §1) — TextField's usual
+   margin-bottom, meant to space fields apart inside a shared panel, would
+   otherwise add a blank line inside each of these one-field panels. */
+BrowseScreen #query-panel TextField,
+BrowseScreen #tag-panel TextField {
+    margin-bottom: 0;
+}
+
+BrowseScreen #results-panel {
+    height: 1fr;
+}
+
+BrowseScreen #results {
+    height: 1fr;
+    border: none;
+}
+
+BrowseScreen #empty-state {
+    color: $text-muted;
+    padding: 1 2;
+}
+
+#mode-badge.mode-filename {
+    color: red;
+}
+
+#mode-badge.mode-content {
+    color: blue;
+}
+
+InspectTreeScreen Horizontal {
+    height: 1fr;
+}
+
+InspectTreeScreen InspectTree {
+    height: 1fr;
+}
+
+#inspect-panel {
+    width: 50%;
+}
+
+#preview-panel {
+    width: 50%;
+}
+
+/* The warnings block (Sprint 6 M9): above the preview's own content, dim and
+   sized to what it holds, so a clean file's preview is exactly as it was. */
+#preview-warnings {
+    color: $text-warning;
+    padding: 0 1;
+    margin-bottom: 1;
+    height: auto;
+    max-height: 50%;
+}
+
+#preview-body {
+    height: 1fr;
+}
+
+#preview-message {
+    padding: 0 1;
+}
+
+#preview-image {
+    width: 1fr;
+    height: 1fr;
+}
+
+InspectTree.mode-pdf {
+    border: round red;
+}
+
+InspectTree.mode-md {
+    border: round blue;
+}
+
+#mode-badge {
+    width: auto;
+    text-style: bold;
+    padding: 0 1;
+}
+
+#mode-badge.mode-pdf {
+    color: red;
+}
+
+#mode-badge.mode-md {
+    color: blue;
+}
+
+ConfirmDialog, PromptDialog {
+    align: center middle;
+}
+
+.dialog {
+    width: auto;
+    min-width: 40;
+    height: auto;
+    border: round $accent;
+    background: $panel;
+    padding: 1 2;
+    align-horizontal: center;
+}
+
+.dialog Static {
+    width: 100%;
+    text-align: center;
+}
+
+.dialog-hint {
+    color: $text-muted;
+    margin-top: 1;
+}
+
+.dialog Input {
+    margin-top: 1;
+    width: 40;
+}

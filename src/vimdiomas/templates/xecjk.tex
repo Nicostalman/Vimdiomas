@@ -1,0 +1,116 @@
+\documentclass[12pt]{article}
+
+% xeCJK and the CJK main font are loaded only when the language's kind has one
+% (pandoc passes `cjkfont` for it, M6): an alphabetical language is set in
+% Latin Modern alone. The file keeps its name, which predates that.
+\usepackage{fontspec}
+$if(cjkfont)$
+\usepackage{xeCJK}
+\setCJKmainfont{$cjkfont$}
+% xeCJK treats ’ ” — … and the other CJK punctuation as full-width, and
+% after one it drops a typed space (`\ignorespaces`, there so a hard-wrapped
+% line of Chinese source prints no gap). So `a "b" c` came out `a “b”c`.
+% Kept: xeCJK's classes, so a genuine “你好” is spaced as before. Changed:
+% the macro that handles a space after such a character stops before the
+% `\ignorespaces` that ends it, so a typed space prints. Rejected, measured:
+% LatinPunct (half-width quote glyphs, extra glue next to hanzi), CheckFullRight
+% (no effect), and declaring the quotes Default (“你好” gains a gap each side).
+% It edits an xeCJK internal: guarded, so a TeX Live without the macro simply
+% keeps today's behaviour and never fails a compile.
+\ExplSyntaxOn
+\tl_new:N \g_vimdiomas_fullright_tl
+\cs_if_exist:NT \xeCJK_FullRight_and_Boundary:
+  {
+    \tl_gset:Ne \g_vimdiomas_fullright_tl
+      { \exp_not:o { \xeCJK_FullRight_and_Boundary: } }
+    \tl_gremove_all:Nn \g_vimdiomas_fullright_tl { \tex_ignorespaces:D }
+    \tl_gremove_all:Nn \g_vimdiomas_fullright_tl { \ignorespaces }
+    \cs_gset_protected:Npn \xeCJK_FullRight_and_Boundary: { \g_vimdiomas_fullright_tl }
+  }
+\ExplSyntaxOff
+% `...` in a heading is U+2026, which xeCJK sets in the CJK font as a
+% mid-height ⋯: the Latin font's ellipsis is the right one.
+\xeCJKDeclareCharClass{Default}{"2026}
+$endif$
+% Latin text already fell back to this silently; \setmainfont can't find it
+% by name via fontspec's system-font search on every machine (it isn't a
+% system font, it ships inside TeX Live), so it's named explicitly this way
+% instead — same look, same portability, no longer an unstated accident.
+\usepackage{lmodern}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{longtable}
+\usepackage{caption}
+\usepackage{array}
+\usepackage{xcolor}
+\setcounter{secnumdepth}{-1}
+\newcounter{none} % pandoc's longtable output disables captions via \LTcaptype{none}
+
+% Category headings (pandoc's ##, shifted by --shift-heading-level-by=-1 to
+% \section, not \subsection — checked against pandoc's own raw output): a
+% clear break between tables, no numbering (secnumdepth below). LaTeX's own
+% default \section style (\Large\bfseries, negative beforeskip so the
+% paragraph right after it is never indented) already gives exactly this
+% look, so it's left unredefined.
+%
+% Subtitle headings (pandoc's ###, shifted to \subsection, M6 — a grammar
+% file's own third level, one below a category): bold at body size and
+% prefixed with an en dash (\normalsize against \section's \Large; the dash
+% starts the heading's paragraph itself, hence its own \noindent), with the same
+% negative-beforeskip convention as \section's own default, so a subtitle's
+% own first triad isn't indented either. It's -1sp — effectively zero — so
+% the entries block's own GRAMMAR_ENTRY_GAP is the whole gap before a
+% subtitle, same as between two entries (a positive beforeskip here was M6's
+% first pass, and it leaked a \parindent onto exactly the first hanzi line
+% of the first entry under a subtitle — caught in the dev's manual pass).
+% Redefined directly with \@startsection (no titlesec — not in this TeX Live
+% install's basic scheme, and this is all \@startsection is doing anyway).
+\makeatletter
+\renewcommand{\subsection}{%
+  \@startsection{subsection}{2}{0pt}{-1sp}{0.6em}{\normalfont\normalsize\bfseries\noindent--\ }}
+\makeatother
+
+% Grammar triads (M6): a hanzi character stacked over its own pinyin syllable
+% (or nothing), sized to its own content so a run of these concatenates with
+% no per-character gap and no shared column width across characters.
+% Rows at \arraystretch 1 (not the vocabulary table's global 1.6, below) with
+% a negative row skip, so the pinyin sits close under its hanzi.
+\newcommand{\HanziPinyin}[2]{%
+  {\renewcommand{\arraystretch}{1}%
+  \begin{tabular}[t]{@{}c@{}}
+    {\Large #1} \\[-0.35em]
+    {\scriptsize\color{gray} #2}
+  \end{tabular}}%
+  \allowbreak % a long phrase wraps between units, not past the margin
+}
+
+% Grammar entries without a pinyin row (M6): the word alone, large. A parbox
+% rather than a bare \Large run, because a \Large run inside the grammar
+% block's one body-size paragraph takes that paragraph's body-size line
+% spacing, so a phrase that wraps would have its lines collide; the box is its
+% own paragraph, set under \Large's own \baselineskip.
+\newcommand{\GrammarWord}[1]{%
+  \parbox[t]{\linewidth}{\raggedright\Large #1\par}%
+}
+
+% longtable centers itself by default (\LTleft/\LTright both default to \fill);
+% left-align it against the text margin instead.
+\setlength{\LTleft}{0pt}
+\setlength{\LTright}{\fill}
+
+% More breathing room between rows in the vocabulary lists.
+\renewcommand{\arraystretch}{1.6}
+
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+
+\begin{document}
+\noindent
+{\LARGE\bfseries $title$}\par
+\vspace{0.4em}
+\hrule
+\vspace{1.5em}
+
+$body$
+
+\end{document}
