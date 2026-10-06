@@ -104,6 +104,7 @@ M2's `validation.md` §4 (the dev's check of real notebooks) was not reported to
 | **`scripts/leak_check.sh [ref [base]]` is kept and run before every public push** | The dev's choice. It reads its patterns from the machine at run time, so it holds nothing personal. `base` exists because at publish time the commit sits on the public repo's `main`, not the private one's. |
 | **The old history is kept only in `~/Ego/Computing/idiomas-history.bundle`** | The dev's choice. Local `main` follows the public repo only. The public commits use the GitHub noreply email (local `user.email`). |
 | **The migration ran on the dev's machine during implementation** | The agent's `uv run vimdiomas --help` went through `main()`. The config, its backups and the cache moved intact, and the agent made the `~/.local/bin/vimdiomas` link. Validation §4's app checks are still the dev's. |
+| **Untracking deleted the backlogs from disk at the pull, and they were restored** | `git pull` applies a commit that untracks a file as a deletion in the working folder. Sprint 2–6's backlogs were restored from `e4df466`. One-off: since M1 no backlog is ever staged, so none is ever untracked again. |
 
 ## Assumptions
 

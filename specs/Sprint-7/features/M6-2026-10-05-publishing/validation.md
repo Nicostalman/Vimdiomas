@@ -49,21 +49,32 @@ This ran on the dev's machine during implementation: the agent's
 
 ## 5. The public repo (§5)
 
-- [ ] `git bundle verify ~/Ego/Computing/idiomas-history.bundle` succeeds and
+- [x] `git bundle verify ~/Ego/Computing/idiomas-history.bundle` succeeds and
       `git bundle list-heads` shows the old `main`.
-- [ ] `gh api repos/Nicostalman/Vimdiomas/commits` lists exactly two commits:
+- [x] `gh api repos/Nicostalman/Vimdiomas/commits` lists exactly two commits:
       *Initial commit* and *Vimdiomas*, the latter authored by the noreply
       email.
-- [ ] `scripts/leak_check.sh origin/main` is clean.
-- [ ] No `backlog.md` or `motivation.md` in `git ls-tree -r origin/main`.
-- [ ] A fresh `git clone https://github.com/Nicostalman/Vimdiomas.git` into a
+- [x] `scripts/leak_check.sh origin/main` is clean.
+- [x] No `backlog.md` or `motivation.md` in `git ls-tree -r origin/main`.
+- [x] A fresh `git clone https://github.com/Nicostalman/Vimdiomas.git` into a
       scratch folder, then the README's install commands, gives a
       `.venv/bin/vimdiomas` whose `doctor` runs.
 
 ## 6. The switch
 
-- [ ] `git remote -v` shows only `origin` → `Nicostalman/Vimdiomas`.
-- [ ] `git status` on `main` is up to date with `origin/main`, and
+- [x] `git remote -v` shows only `origin` → `Nicostalman/Vimdiomas`.
+- [x] `git status` on `main` is up to date with `origin/main`, and
       `git branch` lists `main` only.
-- [ ] `git config user.email` is the noreply email.
+- [x] `git config user.email` is the noreply email.
 - [ ] The dev deletes `Nicostalman/Idiomas` (their action).
+
+Run on 2026-10-06: the bundle holds 124 commits and clones. The public commit
+is `d9b1c5a`, pushed as a fast-forward onto `a9cb710`. Its diff only adds
+files, and the leak check against `public/main` was clean. The fresh clone
+installed with `pip install .` and `doctor` passed.
+
+**Found at the switch:** the squash commit untracked Sprint 2–6's backlogs,
+and `git pull` on `main` applied that as a deletion, so the files were removed
+from disk. The agent restored all five from `e4df466`, the last commit that
+tracked them. They are ignored and still on disk. This was a one-off: since
+M1, `sprint-start` never stages a backlog, so no later commit untracks one.
