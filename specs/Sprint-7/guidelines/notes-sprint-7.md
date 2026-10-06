@@ -111,7 +111,7 @@ M2's `validation.md` §4 (the dev's check of real notebooks) was not reported to
 **Five of the six planned milestones landed**: M1, M2, M3, M5 and M6 (PRs
 #47–#51). M4, *Anki export*, was dropped before its spec. The project is now
 public as **Vimdiomas** at <https://github.com/Nicostalman/Vimdiomas>
-(GPL-3.0). It has a three-section README, content search in Browse, and fixed
+(GPL-3.0). It has a rewritten README (the dev removed its *Dependencies* section in `becefef`, on the public repo), content search in Browse, and fixed
 skills. The private `Nicostalman/Idiomas` repo is left for the dev to delete.
 Its history survives in `~/Ego/Computing/idiomas-history.bundle`.
 
