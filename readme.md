@@ -2,6 +2,8 @@
 
 Store vocabulary efficiently into markdown files, tastefully compiled to PDF.
 
+Runs in the terminal with vim-style keybindings
+
 ## Tutorial and overview
 
 ![Adding an entry to a category](docs/images/overview-1.png)
@@ -9,9 +11,15 @@ Store vocabulary efficiently into markdown files, tastefully compiled to PDF.
 ![Inspect tree in PDF mode, with the compiled PDF beside it](docs/images/overview-2.png)
 
 
-Only Vim keybindings!
+## Moving around
 
+Navigate menus with hjkl.
 
+Press esc to switch panels. Re-enter the panel with enter/return.
+
+Use tab to cycle through buttons.
+
+Create a file or directory in "Inspect tree". Add vocabulary in "Enter vocabulary".
 
 ## Installing
 
