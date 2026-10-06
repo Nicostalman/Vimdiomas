@@ -106,6 +106,23 @@ M2's `validation.md` §4 (the dev's check of real notebooks) was not reported to
 | **The migration ran on the dev's machine during implementation** | The agent's `uv run vimdiomas --help` went through `main()`. The config, its backups and the cache moved intact, and the agent made the `~/.local/bin/vimdiomas` link. Validation §4's app checks are still the dev's. |
 | **Untracking deleted the backlogs from disk at the pull, and they were restored** | `git pull` applies a commit that untracks a file as a deletion in the working folder. Sprint 2–6's backlogs were restored from `e4df466`. One-off: since M1 no backlog is ever staged, so none is ever untracked again. |
 
+### Sprint 7 closed (2026-10-06)
+
+**Five of the six planned milestones landed**: M1, M2, M3, M5 and M6 (PRs
+#47–#51). M4, *Anki export*, was dropped before its spec. The project is now
+public as **Vimdiomas** at <https://github.com/Nicostalman/Vimdiomas>
+(GPL-3.0). It has a three-section README, content search in Browse, and fixed
+skills. The private `Nicostalman/Idiomas` repo is left for the dev to delete.
+Its history survives in `~/Ego/Computing/idiomas-history.bundle`.
+
+**Carried forward:** nothing as a milestone. The Postponed table below is what
+the next sprint start should offer: Anki export, editing and moving entries,
+Windows/WSL, `doctor` checking the LaTeX packages, multi-page preview,
+persisting the tag and content caches, opening a result at its entry, wider
+content search, brew packaging, a user-extensible language registry, the
+legend overflow and the straight `'`. From now on, PRs go to the public repo,
+and `scripts/leak_check.sh` runs before each push.
+
 ## Assumptions
 
 Taken as given by this sprint; not verified in code or stated in the roadmap.

@@ -1,5 +1,12 @@
 # Changelog
 
+## Sprint 7
+- M1 · Fix the skills
+- M2 · Curly-quote spacing
+- M3 · Search by content
+- M5 · README rewrite
+- M6 · Publishing
+
 ## Sprint 6
 - M1 · Data integrity
 - M2 · Crash-proofing
