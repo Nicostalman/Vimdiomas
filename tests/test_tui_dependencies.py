@@ -244,3 +244,36 @@ def test_refusal_names_each_language_that_needs_the_dependency():
     assert dependencies.refusal([check], ["Japanese", "Chinese", "German"]) == (
         "Chinese and Japanese need xeCJK, which is missing. Install it with `x y`."
     )
+
+
+def test_refusal_words_a_check_with_a_detail_as_what_is_missing():
+    check = doctor.Check(
+        "LaTeX packages",
+        required=True,
+        ok=False,
+        detail="caption, xcolor",
+        install="sudo tlmgr install caption xcolor",
+    )
+    assert dependencies.refusal([check], ["German"]) == (
+        "LaTeX packages missing: caption, xcolor. "
+        "Install it with `sudo tlmgr install caption xcolor`."
+    )
+
+
+def test_refusal_for_a_detail_without_a_command_gives_the_message():
+    check = doctor.Check(
+        "LaTeX packages",
+        required=True,
+        ok=False,
+        detail="needs a TeX distribution",
+        message="LaTeX packages can't be checked: no TeX distribution found",
+    )
+    assert dependencies.refusal([check], []) == (
+        "LaTeX packages missing: needs a TeX distribution. "
+        "LaTeX packages can't be checked: no TeX distribution found"
+    )
+
+
+def test_a_failing_latex_packages_check_is_never_offered():
+    check = doctor.Check("LaTeX packages", required=True, ok=False, install="sudo x")
+    assert not dependencies._offerable([check])

@@ -5,6 +5,7 @@ non-first step goes back one step, `q` on the first aborts the whole
 wizard) and it exits with the finished `Config`, or `None` if quit early.
 """
 
+import textwrap
 import time
 from pathlib import Path
 
@@ -50,6 +51,13 @@ def _checkbox_id(language: str) -> str:
     return f"language-{language.lower()}"
 
 
+# The step's panel is 60 wide with 2 of padding each side (`.wizard-panel` in
+# app.tcss), measured in a running app (Sprint 8 M2): 56 columns of content.
+# A failing check's detail wraps to it, indented under its line.
+PANEL_CONTENT_WIDTH = 56
+DETAIL_INDENT = "  "
+
+
 def _name_width(checks: list[doctor.Check]) -> int:
     """The name column's width: 10, or the longest name when one runs
     longer — Linux's "Noto Serif CJK SC" and "fcitx5 or ibus" do (Sprint 5
@@ -72,7 +80,10 @@ def _checks_text(checks: list[doctor.Check]) -> Text:
     run long enough to be cut off at the panel's width — the CLI's `vimdiomas
     doctor` still prints the full message, this is wizard-display only)
     plus an arrow to its `url`, when it has one (macOS's CJK font doesn't —
-    it ships with the OS, nothing to link to)."""
+    it ships with the OS, nothing to link to).
+
+    A check with a `detail` (what is missing, Sprint 8 M2) shows it under its
+    line, red, indented and wrapped to the panel."""
     width = _name_width(checks)
     label_width = _label_width(checks)
     text = Text()
@@ -88,6 +99,14 @@ def _checks_text(checks: list[doctor.Check]) -> Text:
             if check.url:
                 text.append(" <-- ", style="dim")
                 text.append(check.url, style="red")
+            if check.detail:
+                for line in textwrap.wrap(
+                    check.detail,
+                    PANEL_CONTENT_WIDTH,
+                    initial_indent=DETAIL_INDENT,
+                    subsequent_indent=DETAIL_INDENT,
+                ):
+                    text.append(f"\n{line}", style="red")
     return text
 
 

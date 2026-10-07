@@ -243,6 +243,7 @@ Verified present on this machine except where noted.
 | Python 3.14.7 | ✅ `/opt/homebrew/bin/python3` |
 | pandoc | ✅ `/opt/homebrew/bin/pandoc` |
 | xelatex (TeX Live 2026 basic) | ✅ `/Library/TeX/texbin/xelatex` |
+| LaTeX packages the template loads (`fontspec`, `geometry`, `longtable`, `caption`, `array`, `xcolor`, `lmodern` and its fonts — Sprint 8 M2) | ✅ every `kpsewhich` probe resolves under `/usr/local/texlive/2026basic` (BasicTeX); only xeCJK is missing there |
 | **xeCJK** | ❌ **`sudo tlmgr install xecjk`** |
 | Songti SC | ✅ system font |
 | nvim | ✅ Inspect Tree's MD mode shells out to `nvim` directly (Sprint 3, M4) |
@@ -256,7 +257,8 @@ dev's Mac:
 | Linux, bash | `archlinux:latest` (amd64; emulated on Apple Silicon) |
 | Python ≥ 3.14 | `python` |
 | pandoc | `pandoc-cli` |
-| xelatex, fontspec/xcolor/caption, Latin Modern | `texlive-xetex`, `texlive-latexrecommended`, `texlive-fontsrecommended` |
+| xelatex | `texlive-xetex` (which pulls in `texlive-latex`, so `geometry`, `longtable`, `array`) |
+| fontspec/xcolor/caption, Latin Modern and its fonts (the `LaTeX packages` check, Sprint 8 M2) | `texlive-latexrecommended`, `texlive-fontsrecommended` |
 | xeCJK | `texlive-langchinese` |
 | Noto Serif CJK SC | `noto-fonts-cjk` (+ `fontconfig` for `fc-list`) |
 | pdftoppm | `poppler` |
@@ -347,6 +349,10 @@ location:
     single source of truth, which `compile.py` passes to the template;
   - `install_hint(dependency)` — the one-line install command `doctor`
     shows (`brew …`, or `pacman …` on Arch), or `None` when there isn't one;
+  - `latex_install_hint(packages)` — the command that installs exactly the
+    named LaTeX packages (`sudo tlmgr install …` / `sudo pacman -S …`),
+    through each module's `LATEX_PACKAGES` table (name → `tlmgr` / pacman
+    package), deduplicated; `None` for none (Sprint 8 M2);
   - `input_switcher()` — the `(name, available, url)` of the switching tool,
     for `doctor`'s optional check;
   - `user_bin_dir()` (`~/.local/bin` on both) and `DEFAULT_SHELL_CONFIG`
@@ -374,7 +380,7 @@ location:
   `Non Keyboard Input Method` (character palette, Press-and-Hold) is dropped.
   Display names come from a small table with the raw ID as the fallback,
   rather than the Carbon `TIS` API, which would need `pyobjc` for cosmetics.
-- **`doctor`** labels each check required (pandoc, xelatex), needed for a
+- **`doctor`** labels each check required (pandoc, xelatex, `LaTeX packages`), needed for a
   language (xeCJK and the CJK font, for Chinese — Sprint 6 M7) or optional (the
   platform's input switcher, `nvim`, `pdftoppm`): a missing required tool
   blocks compiling; a missing language one blocks that language; a missing
@@ -387,6 +393,15 @@ location:
   M4 caught `doctor.py` still checking Songti SC long after the template had
   moved on to Heiti SC — Sprint 5 M3 closed that class of drift for good by
   giving the font name one source of truth in code).
+
+  `LaTeX packages` (Sprint 8 M2) is one check for what `xecjk.tex` loads
+  unconditionally: a table in `doctor.py` of (name, `kpsewhich` probe), looked
+  up in a single `kpsewhich` call and matched back by basename. A `Check` has
+  a `detail` — what is missing (`caption, xcolor`, or `needs a TeX
+  distribution` when there is no `kpsewhich`) — which the wizard prints under
+  the `missing` line. Its `install` is built from the missing packages only.
+  A test fails if the template and the table disagree, or if either
+  platform's `LATEX_PACKAGES` lists different names.
 
 ## Distribution (Sprint 4 M7)
 

@@ -40,6 +40,8 @@ def refusal(missing: list[doctor.Check], languages: list[str]) -> str:
         needers = _languages_needing(check, languages)
         if needers:
             line = f"{_join(needers)} {_needs(needers)} {check.name}, which is missing."
+        elif check.detail:
+            line = f"{check.name} missing: {check.detail}."
         else:
             line = f"{check.name} is missing."
         if check.install:

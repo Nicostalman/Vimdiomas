@@ -313,5 +313,29 @@ def test_arch_commands():
     assert linux.install_hint("pdftoppm") == "sudo pacman -S poppler"
 
 
+def test_the_xelatex_hint_is_texlive_xetex_alone():
+    assert linux.install_hint("xelatex") == "sudo pacman -S texlive-xetex"
+
+
+def test_latex_install_hint_maps_names_to_pacman_packages():
+    assert linux.latex_install_hint(["caption"]) == "sudo pacman -S texlive-latexrecommended"
+    assert linux.latex_install_hint(["lmodern", "geometry"]) == (
+        "sudo pacman -S texlive-fontsrecommended texlive-latex"
+    )
+
+
+def test_latex_install_hint_lists_a_shared_package_once():
+    assert linux.latex_install_hint(["fontspec", "caption", "xcolor"]) == (
+        "sudo pacman -S texlive-latexrecommended"
+    )
+    assert linux.latex_install_hint(["lmodern", "lmodern fonts"]) == (
+        "sudo pacman -S texlive-fontsrecommended"
+    )
+
+
+def test_latex_install_hint_is_none_for_nothing_missing():
+    assert linux.latex_install_hint([]) is None
+
+
 def test_unknown_dependency_offers_no_command():
     assert linux.install_hint("no-such-dependency") is None
