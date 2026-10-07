@@ -23,7 +23,7 @@ Create a file or directory in "Inspect tree". Add vocabulary in "Enter vocabular
 
 ## Installing
 
-Vimdiomas runs on **macOS** and **Linux**. Before you start, have the tools listed under [Dependencies](#dependencies) below, at least Python 3.14+ and git. The first-run wizard checks the rest.
+Vimdiomas runs on **macOS** and **Arch Linux**. Before you start, have the tools listed under [Dependencies](#dependencies) below, at least Python 3.14+ and git. The first-run wizard checks the rest.
 
 ```sh
 # Download

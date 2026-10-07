@@ -1,12 +1,12 @@
 """One place OS-specific calls live, so supporting another platform means
 adding a module here rather than touching every call site.
 
-macOS (`macos.py`) and Linux (`linux.py`, Sprint 5 M7) are implemented;
-every other platform gets inert no-ops, matching the guarantee
-`input_method.py` already made on its own before this module existed."""
+macOS (`macos.py`) and Linux (`linux.py`, Sprint 5 M7) are implemented, and
+only macOS and Arch Linux are supported (Sprint 8 M1). Any other system raises
+`ImportError` here, a backstop: `vimdiomas.supported_os` refuses it first, in
+`__main__`, before this module is imported."""
 
 import platform as _platform
-from pathlib import Path
 
 from vimdiomas.platform.sources import InputSource
 
@@ -43,39 +43,10 @@ elif _platform.system() == "Linux":
         user_bin_dir,
     )
 else:
-    CJK_FONT_NAME = "Noto Serif CJK SC"
-    CJK_FONT_PATH = None
-    CJK_FONT_URL = ""
-    DEFAULT_SHELL_CONFIG = ".profile"
-    INPUT_SOURCES_SETTINGS = "your system's keyboard settings"
-
-    def is_keyboard_layout(source_id: str) -> bool:
-        return False
-
-    def open_file(path: Path) -> None:
-        pass
-
-    def switch_input_source(source_id: str) -> None:
-        pass
-
-    def list_input_sources() -> list[InputSource]:
-        """No sources to offer — the wizard treats that the same way it
-        treats a Mac with none enabled: warn, and carry on."""
-        return []
-
-    def cjk_font_installed() -> bool:
-        return False
-
-    def user_bin_dir() -> Path | None:
-        """No user-bin convention wired up here, so the wizard skips
-        linking rather than guessing at one (Sprint 4 M7)."""
-        return None
-
-    def install_hint(dependency: str) -> str | None:
-        return None
-
-    def input_switcher() -> tuple[str, bool, str]:
-        return "input switcher", False, ""
+    raise ImportError(
+        "vimdiomas.platform supports only macOS and Arch Linux "
+        f"(this is {_platform.system()})."
+    )
 
 
 __all__ = [

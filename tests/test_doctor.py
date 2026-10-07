@@ -73,9 +73,7 @@ def test_a_check_carries_the_platforms_install_command(monkeypatch):
 def test_a_check_with_no_platform_command_has_an_empty_install(monkeypatch):
     _all_missing(monkeypatch)
     _as_linux_arch(monkeypatch)
-    from vimdiomas.platform import linux
-
-    monkeypatch.setattr(linux, "distro_family", lambda: None)
+    monkeypatch.setattr(doctor, "install_hint", lambda dependency: None)
 
     assert _by_name(doctor.run(), "xeCJK").install == ""
 
@@ -266,7 +264,6 @@ def test_macos_messages_are_unchanged(monkeypatch):
 def _as_linux_arch(monkeypatch):
     from vimdiomas.platform import linux
 
-    monkeypatch.setattr(linux, "distro_family", lambda: "arch")
     monkeypatch.setattr(doctor, "install_hint", linux.install_hint)
     monkeypatch.setattr(doctor, "CJK_FONT_NAME", linux.CJK_FONT_NAME)
     monkeypatch.setattr(doctor, "CJK_FONT_PATH", linux.CJK_FONT_PATH)
@@ -295,17 +292,3 @@ def test_linux_messages_carry_pacman_commands_and_no_brew(monkeypatch):
     assert "fcitx5 or ibus" in messages
     assert not any("brew" in message for message in messages.values())
     assert _by_name(checks, "Noto Serif CJK SC").url == "https://github.com/notofonts/noto-cjk"
-
-
-def test_unknown_distro_offers_no_command(monkeypatch):
-    _all_missing(monkeypatch)
-    _as_linux_arch(monkeypatch)
-    from vimdiomas.platform import linux
-
-    monkeypatch.setattr(linux, "distro_family", lambda: None)
-
-    messages = {c.name: c.message for c in doctor.run()}
-
-    assert messages["pandoc"] == "pandoc not found: install it"
-    assert messages["xeCJK"] == "xeCJK not found: install the xeCJK LaTeX package"
-    assert not any("`" in message for message in messages.values())

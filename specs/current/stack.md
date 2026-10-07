@@ -1,6 +1,6 @@
 # Tech stack
 
-Every choice below is justified against the constraints in [mission.md](mission.md): a single-user macOS or Linux terminal app, plain-text storage, fast entry, generated PDFs.
+Every choice below is justified against the constraints in [mission.md](mission.md): a single-user terminal app for macOS and Arch Linux (the only supported platforms, Sprint 8 M1), plain-text storage, fast entry, generated PDFs.
 
 ## Summary
 
@@ -11,7 +11,7 @@ Every choice below is justified against the constraints in [mission.md](mission.
 | Pinyin | pypinyin | ≥ 0.53 |
 | Storage | Markdown + tabs | — |
 | PDF | pandoc → xelatex + xeCJK | pandoc 3.x, TeX Live 2026 |
-| CJK font | Songti SC (macOS) / Noto Serif CJK SC (Linux) | macOS built-in / distro package |
+| CJK font | Songti SC (macOS) / Noto Serif CJK SC (Arch Linux) | macOS built-in / Arch package |
 | Tests | pytest | ≥ 8 |
 | Packaging | `pyproject.toml`, src layout, venv | — |
 
@@ -158,7 +158,7 @@ pandoc is already installed and is the obvious markdown-to-anything tool; `xelat
 sudo tlmgr install xecjk
 ```
 
-The program's `doctor` command checks for it and prints exactly that line rather than surfacing a LaTeX error. (On Linux, xeCJK comes with the distro's Chinese TeX Live package, and `doctor` prints that package's install line instead.)
+The program's `doctor` command checks for it and prints exactly that line rather than surfacing a LaTeX error. (On Arch Linux, xeCJK comes with the `texlive-langchinese` package, and `doctor` prints that package's install line instead.)
 
 The CJK font is **Songti SC** on macOS, present by default
 (`/System/Library/Fonts/Supplemental/Songti.ttc`) — nothing needs
@@ -167,7 +167,7 @@ against the four CJK faces installed on this machine; see
 [design.md](design.md)'s *The compiled notebook* for the rest of the
 notebook's typography. On Linux it is **Noto Serif CJK SC** (Sprint 5 M7),
 the Ming/serif counterpart to Songti, found through fontconfig and installed
-from the distro's Noto CJK package. PDFs from the two platforms are close
+from Arch's Noto CJK package. PDFs from the two platforms are close
 but not identical, which is accepted. The template takes the face as a
 pandoc variable, so it's the same template on both. M2's staleness stamp
 hashes the kind's font name (`kind.cjk_font`), so a tree compiled on one OS recompiles on the other.
@@ -247,7 +247,7 @@ Verified present on this machine except where noted.
 | Songti SC | ✅ system font |
 | nvim | ✅ Inspect Tree's MD mode shells out to `nvim` directly (Sprint 3, M4) |
 
-On Linux (Sprint 5 M7), the reference machine is the Arch image in
+On Arch Linux (Sprint 5 M7), the reference machine is the Arch image in
 [`docker/Dockerfile`](../../docker/Dockerfile), run under OrbStack on the
 dev's Mac:
 
@@ -329,9 +329,15 @@ location:
   pattern).
 - **Platform layer** (`vimdiomas.platform`): the sole caller of OS-specific
   tools. It dispatches on `platform.system()` at import time to
-  `macos.py` or `linux.py` (Sprint 5 M7); every other platform gets inert
-  no-ops, so Windows would be one more module rather than a change at every
-  call site. Each module offers the same surface:
+  `macos.py` or `linux.py` (Sprint 5 M7), and `linux.py` is the Arch module.
+  Only macOS and Arch Linux (derivatives included) are supported (Sprint 8
+  M1): `vimdiomas/supported_os.py`, stdlib only, is the gate that
+  `__main__.py` runs before importing anything else, and it refuses every other
+  system (see [design.md](design.md), *Supported platforms*). The layer itself
+  raises `ImportError` on any other system, a backstop the gate makes
+  unreachable, so another platform is one more module rather than a change at
+  every call site. `__main__.py` is only that gate; the commands are in
+  `cli.py`. Each module offers the same surface:
   - `open_file` (`open` / `xdg-open`);
   - `switch_input_source` and `list_input_sources` (`macism` / fcitx5 or
     ibus — Sprint 4 M6, Sprint 5 M7);
@@ -340,8 +346,7 @@ location:
     for it (a file on macOS, `fc-list` on Linux). This is the font name's
     single source of truth, which `compile.py` passes to the template;
   - `install_hint(dependency)` — the one-line install command `doctor`
-    shows (`brew …`, or `pacman`/`apt`/`dnf` by the distro family read from
-    `/etc/os-release`), or `None` when there isn't one;
+    shows (`brew …`, or `pacman …` on Arch), or `None` when there isn't one;
   - `input_switcher()` — the `(name, available, url)` of the switching tool,
     for `doctor`'s optional check;
   - `user_bin_dir()` (`~/.local/bin` on both) and `DEFAULT_SHELL_CONFIG`

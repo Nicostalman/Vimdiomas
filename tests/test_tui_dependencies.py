@@ -147,14 +147,14 @@ async def test_the_offer_names_the_dependency_and_the_command(monkeypatch, runs)
 
 
 async def test_the_offer_lists_every_command_when_several_are_missing(monkeypatch, runs):
-    _checks_then(monkeypatch, [PANDOC, _xecjk(), _font(install="sudo apt install fonts-noto-cjk")])
+    _checks_then(monkeypatch, [PANDOC, _xecjk(), _font(install="sudo pacman -S noto-fonts-cjk")])
     async with _Harness().run_test() as pilot:
         dependencies.ensure_dependencies(pilot.app, ["Chinese"], lambda error: None)
         await pilot.pause()
         message = pilot.app.screen.message
         assert "xeCJK and Songti SC, which are missing. Install them now?" in message
         assert "`sudo tlmgr install xecjk`" in message
-        assert "`sudo apt install fonts-noto-cjk`" in message
+        assert "`sudo pacman -S noto-fonts-cjk`" in message
 
 
 async def test_declining_refuses_and_runs_nothing(monkeypatch, runs):
@@ -186,7 +186,7 @@ async def test_escape_declines_too(monkeypatch, runs):
 async def test_accepting_runs_exactly_the_listed_commands_without_a_shell(monkeypatch, runs):
     _checks_then(
         monkeypatch,
-        [PANDOC, _xecjk(), _font(install="sudo apt install fonts-noto-cjk")],
+        [PANDOC, _xecjk(), _font(install="sudo pacman -S noto-fonts-cjk")],
         [PANDOC, _xecjk(ok=True), _font(ok=True)],
     )
     results = []
@@ -199,7 +199,7 @@ async def test_accepting_runs_exactly_the_listed_commands_without_a_shell(monkey
     assert results == [None]
     assert runs["commands"] == [
         ["sudo", "tlmgr", "install", "xecjk"],
-        ["sudo", "apt", "install", "fonts-noto-cjk"],
+        ["sudo", "pacman", "-S", "noto-fonts-cjk"],
     ]
     assert runs["suspends"] == 1
     assert runs["inputs"] == 1

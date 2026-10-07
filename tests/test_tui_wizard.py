@@ -983,23 +983,6 @@ async def test_path_step_explains_when_there_is_no_script_to_link(
     assert app.return_value is not None
 
 
-async def test_path_step_skips_linking_off_macos(
-    monkeypatch, tmp_path, _patched_user_bin
-):
-    monkeypatch.setattr("vimdiomas.install.user_bin_dir", lambda: None)
-
-    app = WizardApp()
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        await _reach_path_step(pilot, monkeypatch, tmp_path / "Trees")
-        report = pilot.app.screen.query_one("#path-report").render().plain
-        await pilot.press("enter")
-        await pilot.pause()
-
-    assert "isn't supported on this platform" in report
-    assert app.return_value is not None
-
-
 async def test_q_on_the_path_step_writes_nothing(
     monkeypatch, tmp_path, _patched_user_bin, _patched_config_path
 ):

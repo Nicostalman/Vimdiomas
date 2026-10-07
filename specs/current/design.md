@@ -10,6 +10,23 @@ user-facing surface is expected to follow them; when a milestone establishes or
 changes one, this file is updated in place rather than the convention being
 restated in that milestone's `requirements.md`.
 
+## Supported platforms
+
+Vimdiomas runs on **macOS** and **Arch Linux** (Sprint 8 M1). Arch derivatives
+(Manjaro, EndeavourOS, Arch ARM: `ID_LIKE` lists `arch`) count as Arch, but only
+`archlinux:latest` is tested. On any other system (another distro, Windows, the
+BSDs, a Linux with no readable `/etc/os-release`) every command — the app,
+`compile`, `doctor`, the wizard — prints one line to stderr and exits with status
+1, before anything is written:
+
+```
+Vimdiomas runs only on macOS and Arch Linux. This is Debian GNU/Linux 13 (trixie).
+```
+
+The name is `os-release`'s `PRETTY_NAME`, else its `ID`, else the system's name.
+There is no screen for it and no hint of what to install. `pip install` itself
+is not gated. The gate checks the OS, never whether `brew` or `pacman` exist.
+
 ## Navigation conventions
 
 A **menu** is a screen whose content is a list to choose from (the landing
@@ -234,7 +251,7 @@ same way, through one shared helper:
   terminal so `sudo` can ask for a password, waits for Enter so the output can
   be read, then checks again. Only what the check finds decides: a command that
   failed, or one that never ran, is reported as the dependency still missing.
-- With no command (an unknown Linux distro, a font nothing installs), or if
+- With no command (a font nothing installs), or if
   declined, or still missing afterwards: the language is refused with a line
   naming what is missing and the command or message. Nothing is written.
 - Only a language's own dependencies are ever offered for installation.

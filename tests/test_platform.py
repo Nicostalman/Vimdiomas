@@ -29,12 +29,10 @@ LAYER_NAMES = [
 ]
 
 
-@pytest.mark.skipif(_EXPECTED_MODULE is None, reason="neither macOS nor Linux")
 @pytest.mark.parametrize("name", LAYER_NAMES)
 def test_dispatches_to_this_machines_module(name):
-    # vimdiomas.platform should resolve to this OS's own module rather than the
-    # cross-platform no-ops — macos.py on the dev's Mac, linux.py in the
-    # verification image (Sprint 5 M7).
+    # vimdiomas.platform should resolve to this OS's own module — macos.py on
+    # the dev's Mac, linux.py in the verification image (Sprint 5 M7).
     assert getattr(platform_layer, name) is getattr(_EXPECTED_MODULE, name)
 
 
