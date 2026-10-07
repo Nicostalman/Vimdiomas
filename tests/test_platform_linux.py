@@ -295,58 +295,23 @@ def test_unknown_source_keeps_its_raw_id():
     assert linux.display_name("pinyin") == "Pinyin"
 
 
-# --- distro family and install hints -------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    ("release", "family"),
-    [
-        ({"ID": "arch"}, "arch"),
-        ({"ID": "endeavouros", "ID_LIKE": "arch"}, "arch"),
-        ({"ID": "ubuntu", "ID_LIKE": "debian"}, "debian"),
-        ({"ID": "rocky", "ID_LIKE": "rhel centos fedora"}, "fedora"),
-        ({"ID": "fedora"}, "fedora"),
-        ({"ID": "opensuse-tumbleweed", "ID_LIKE": "opensuse suse"}, None),
-        ({}, None),
-    ],
-)
-def test_distro_family(monkeypatch, release, family):
-    monkeypatch.setattr(linux.platform, "freedesktop_os_release", lambda: release)
-
-    assert linux.distro_family() == family
-
-
-def test_unreadable_os_release_has_no_family(monkeypatch):
-    def _raise():
-        raise OSError("no os-release")
-
-    monkeypatch.setattr(linux.platform, "freedesktop_os_release", _raise)
-
-    assert linux.distro_family() is None
+# --- install hints ------------------------------------------------------------------
 
 
 DEPENDENCIES = ["pandoc", "xelatex", "xecjk", "cjk-font", "input-switcher", "nvim", "pdftoppm"]
 
 
-@pytest.mark.parametrize("family", ["arch", "debian", "fedora"])
-def test_every_family_has_a_command_for_every_dependency(monkeypatch, family):
-    monkeypatch.setattr(linux, "distro_family", lambda: family)
-    manager = {"arch": "pacman", "debian": "apt", "fedora": "dnf"}[family]
-
+def test_every_dependency_has_a_pacman_command():
     for dependency in DEPENDENCIES:
         command = linux.install_hint(dependency)
-        assert command and command.startswith(f"sudo {manager} "), dependency
+        assert command and command.startswith("sudo pacman -S "), dependency
 
 
-def test_arch_commands(monkeypatch):
-    monkeypatch.setattr(linux, "distro_family", lambda: "arch")
-
+def test_arch_commands():
     assert linux.install_hint("pandoc") == "sudo pacman -S pandoc-cli"
     assert linux.install_hint("cjk-font") == "sudo pacman -S noto-fonts-cjk"
     assert linux.install_hint("pdftoppm") == "sudo pacman -S poppler"
 
 
-def test_unknown_family_offers_no_command(monkeypatch):
-    monkeypatch.setattr(linux, "distro_family", lambda: None)
-
-    assert all(linux.install_hint(dependency) is None for dependency in DEPENDENCIES)
+def test_unknown_dependency_offers_no_command():
+    assert linux.install_hint("no-such-dependency") is None

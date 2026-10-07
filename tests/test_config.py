@@ -421,7 +421,7 @@ def test_migration_swallows_os_errors(tmp_path, monkeypatch):
 
 
 def test_main_migrates_before_loading_the_config(monkeypatch):
-    from vimdiomas import __main__ as main_module
+    from vimdiomas import cli as main_module
 
     calls = []
     monkeypatch.setattr(main_module, "migrate_legacy_paths", lambda: calls.append("migrate"))

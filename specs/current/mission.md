@@ -29,7 +29,7 @@ Three properties follow from this and are non-negotiable:
 
 ## Who it is for
 
-One language learner keeping their own notes, working in a terminal on macOS or Linux. Chinese first; the format and the tree carry over to other languages without redesign.
+One language learner keeping their own notes, working in a terminal on macOS or Arch Linux. Chinese first; the format and the tree carry over to other languages without redesign.
 
 ## What "done" looks like
 

@@ -129,15 +129,6 @@ def test_no_script_state(monkeypatch, tmp_path):
     assert install.link_status().state is LinkState.NO_SCRIPT
 
 
-def test_unsupported_platform(monkeypatch, tmp_path):
-    monkeypatch.setattr(install, "user_bin_dir", lambda: None)
-
-    status = install.link_status(target=_script(tmp_path))
-
-    assert status.state is LinkState.UNSUPPORTED
-    assert not status.can_create
-
-
 # --- create_link ---------------------------------------------------------
 
 

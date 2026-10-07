@@ -59,7 +59,8 @@ must run where `vimdiomas.platform` cannot even be imported):
 - **`vimdiomas/__main__.py` becomes a thin entry point.** Its `main()` calls
   `supported_os.refuse_unless_supported()` first, then imports and runs the
   real `main` from `vimdiomas/cli.py` (the current body of `__main__.py`, moved
-  by `git mv`). The console script stays `vimdiomas.__main__:main`, so an
+  by `git mv`; `cli.py` has no `if __name__ == "__main__"` of its own, so
+  `python -m vimdiomas.cli` cannot go around the gate). The console script stays `vimdiomas.__main__:main`, so an
   existing install's link keeps working with no reinstall, and
   `install.py`'s reading of `.../vimdiomas/__main__.py` for `python -m
   vimdiomas` still holds.
@@ -76,7 +77,8 @@ must run where `vimdiomas.platform` cannot even be imported):
   ```
 
   `<name>` is `PRETTY_NAME` from `os-release` when there is one, else its
-  `ID`, else `platform.system()` (`Windows`, `FreeBSD`). One line, no hint of
+  `ID`, else `platform.system()` (`Linux` for an unreadable `os-release`,
+  `Windows`, `FreeBSD`). One line, no hint of
   what to install, nothing else printed.
 - **Nothing is written**: no config, no cache, no migration of the legacy
   Idiomas paths, no link. The refusal happens before any of those code paths
@@ -143,15 +145,20 @@ must run where `vimdiomas.platform` cannot even be imported):
 - **Removed or rewritten**: the Debian and Fedora cases in
   `tests/test_platform_linux.py` (`test_distro_family`,
   `test_unreadable_os_release_has_no_family`, the parametrized
-  every-family test, `test_unknown_family_offers_no_command`); the same
+  every-family test, `test_unknown_family_offers_no_command`; what is left is
+  the Arch commands and a lookup of an unknown dependency); the same
   monkeypatching of `linux.distro_family` in `tests/test_doctor.py`
-  (`_as_linux_arch`, `test_unknown_distro_offers_no_command`); the
-  `UNSUPPORTED` cases in `tests/test_install.py` and `tests/test_tui_wizard.py`.
+  (`_as_linux_arch`; `test_unknown_distro_offers_no_command` is deleted, and
+  the "no platform command" test patches `doctor.install_hint` to return
+  `None` instead); the `UNSUPPORTED` cases in `tests/test_install.py` and
+  `tests/test_tui_wizard.py`; the `apt` command in `tests/test_tui_dependencies.py`'s
+  fixtures, now a pacman one (the test is about the offer, not the distro).
 - **`tests/test_main.py`, `tests/test_config.py`, `tests/conftest.py`**
   import `vimdiomas.cli` where they imported `vimdiomas.__main__`. Their
   assertions are unchanged.
 - **`tests/test_platform.py`**: `LAYER_NAMES` and its dispatch test are
   unchanged; the skipif for "neither macOS nor Linux" goes with the fallback.
+  (Only `test_dispatches_to_this_machines_module` had it.)
 
 ## Context
 

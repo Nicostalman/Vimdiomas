@@ -42,6 +42,11 @@ it. Section numbers (§) refer to [`requirements.md`](requirements.md).
 
 ## 5. Checks before the hand-off
 
+Done on the branch: the full suite on the Mac (one timing-sensitive wizard test
+flaked under Docker load and passes alone), the Debian container for all four
+commands, and the Arch image (`doctor` all `ok`, the platform and gate tests
+pass there). Left for the dev: §3 of `validation.md`.
+
 - Full test suite.
 - The greps and the container runs in [`validation.md`](validation.md).
 - Stop for the dev's review and hand-testing on the Mac.

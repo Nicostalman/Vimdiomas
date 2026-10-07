@@ -22,7 +22,7 @@ def _isolated_compile_cache(tmp_path):
 def _no_legacy_migration():
     """`main()` migrates the pre-rename paths under the real home folder
     (Sprint 7 M6); a test that calls it must never move the dev's config."""
-    from vimdiomas import __main__ as main_module
+    from vimdiomas import cli as main_module
 
     original = main_module.migrate_legacy_paths
     main_module.migrate_legacy_paths = lambda: None

@@ -130,14 +130,6 @@ def _path_report(status: install.LinkStatus) -> Text:
         )
         return text
 
-    if state is install.LinkState.UNSUPPORTED:
-        text.append(
-            "Adding a command to your PATH isn't supported on this "
-            "platform yet.",
-            style="dim",
-        )
-        return text
-
     link = _tilde(status.link_path)
 
     if state is install.LinkState.ALREADY_LINKED:

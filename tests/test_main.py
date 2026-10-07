@@ -3,13 +3,13 @@ import sys
 
 import pytest
 
-from vimdiomas import __main__ as main_module
+from vimdiomas import cli as main_module
 from vimdiomas.compile import CompileReport
 from vimdiomas.config import Config
 
 
 def _point_config_at(monkeypatch, path):
-    """Both names for the config file: `__main__` checks its own import of
+    """Both names for the config file: `cli` checks its own import of
     `CONFIG_PATH`, but `load_config()` reads `vimdiomas.config`'s. Patching
     only the first let these tests read the machine's real config — which
     passed on the dev's Mac only because its user name happens to be the

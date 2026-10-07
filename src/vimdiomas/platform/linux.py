@@ -3,13 +3,13 @@ surface as `macos.py`, dispatched to by `vimdiomas.platform` on Linux.
 
 Input switching targets fcitx5 and ibus, whichever is running (D3). It is
 best-effort: no framework running makes switching and listing silent no-ops,
-the same as macOS without `macism`. Install commands are picked by distro
-family, read from `/etc/os-release` (D5)."""
+the same as macOS without `macism`. The install commands are Arch's (pacman):
+since Sprint 8 M1 Arch is the only Linux supported, and
+`vimdiomas.supported_os` is what refuses every other distro."""
 
 import ast
 import configparser
 import functools
-import platform
 import shutil
 import subprocess
 from pathlib import Path
@@ -57,45 +57,18 @@ DISPLAY_NAMES = {
     "libpinyin": "Pinyin",
 }
 
-_FAMILIES = {
-    "arch": {"arch", "manjaro", "endeavouros"},
-    "debian": {"debian", "ubuntu", "linuxmint", "pop"},
-    "fedora": {"fedora", "rhel", "centos", "rocky", "almalinux"},
-}
-
 # "xelatex" names more than XeTeX itself: the template also loads fontspec,
-# xcolor and caption (the distros' LaTeX-recommended collection) and
-# lmodern's OpenType fonts (their fonts-recommended one), which a bare XeTeX
+# xcolor and caption (Arch's latexrecommended collection) and
+# lmodern's OpenType fonts (its fontsrecommended one), which a bare XeTeX
 # package doesn't pull in on Arch — found building the M7 image.
 INSTALL_HINTS = {
-    "arch": {
-        "pandoc": "sudo pacman -S pandoc-cli",
-        "xelatex": "sudo pacman -S texlive-xetex texlive-latexrecommended texlive-fontsrecommended",
-        "xecjk": "sudo pacman -S texlive-langchinese",
-        "cjk-font": "sudo pacman -S noto-fonts-cjk",
-        "input-switcher": "sudo pacman -S fcitx5-im fcitx5-chinese-addons",
-        "nvim": "sudo pacman -S neovim",
-        "pdftoppm": "sudo pacman -S poppler",
-    },
-    "debian": {
-        "pandoc": "sudo apt install pandoc",
-        "xelatex": "sudo apt install texlive-xetex texlive-latex-recommended texlive-fonts-recommended",
-        "xecjk": "sudo apt install texlive-lang-chinese",
-        "cjk-font": "sudo apt install fonts-noto-cjk",
-        "input-switcher": "sudo apt install fcitx5 fcitx5-chinese-addons",
-        "nvim": "sudo apt install neovim",
-        "pdftoppm": "sudo apt install poppler-utils",
-    },
-    "fedora": {
-        "pandoc": "sudo dnf install pandoc",
-        "xelatex": "sudo dnf install texlive-xetex texlive-collection-latexrecommended "
-        "texlive-collection-fontsrecommended",
-        "xecjk": "sudo dnf install texlive-xecjk",
-        "cjk-font": "sudo dnf install google-noto-serif-cjk-fonts",
-        "input-switcher": "sudo dnf install fcitx5 fcitx5-chinese-addons",
-        "nvim": "sudo dnf install neovim",
-        "pdftoppm": "sudo dnf install poppler-utils",
-    },
+    "pandoc": "sudo pacman -S pandoc-cli",
+    "xelatex": "sudo pacman -S texlive-xetex texlive-latexrecommended texlive-fontsrecommended",
+    "xecjk": "sudo pacman -S texlive-langchinese",
+    "cjk-font": "sudo pacman -S noto-fonts-cjk",
+    "input-switcher": "sudo pacman -S fcitx5-im fcitx5-chinese-addons",
+    "nvim": "sudo pacman -S neovim",
+    "pdftoppm": "sudo pacman -S poppler",
 }
 
 
@@ -224,35 +197,16 @@ def cjk_font_installed() -> bool:
     return bool(result.stdout.strip())
 
 
-def user_bin_dir() -> Path | None:
+def user_bin_dir() -> Path:
     """`~/.local/bin`, the XDG convention — returned whether or not it
     exists yet, as on macOS."""
     return Path.home() / ".local" / "bin"
 
 
-def distro_family() -> str | None:
-    """`"arch"`, `"debian"`, `"fedora"`, or `None` for anything else or an
-    unreadable os-release. `ID` is checked before `ID_LIKE`, so a derivative
-    maps to its own family when it has one."""
-    try:
-        release = platform.freedesktop_os_release()
-    except OSError:
-        return None
-    ids = [release.get("ID", ""), *release.get("ID_LIKE", "").split()]
-    for os_id in ids:
-        for family, members in _FAMILIES.items():
-            if os_id in members:
-                return family
-    return None
-
-
 def install_hint(dependency: str) -> str | None:
-    """The one-line command that installs `dependency` on this distro, or
-    `None` for a distro family the table doesn't cover."""
-    family = distro_family()
-    if family is None:
-        return None
-    return INSTALL_HINTS[family].get(dependency)
+    """The one-line command that installs `dependency`, or `None` for one the
+    table doesn't cover."""
+    return INSTALL_HINTS.get(dependency)
 
 
 def input_switcher() -> tuple[str, bool, str]:

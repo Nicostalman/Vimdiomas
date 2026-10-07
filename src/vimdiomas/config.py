@@ -39,8 +39,6 @@ def migrate_legacy_paths(home: Path | None = None, bin_dir: Path | None = None) 
         from vimdiomas.platform import user_bin_dir
 
         bin_dir = user_bin_dir()
-    if bin_dir is None:
-        return
     link = bin_dir / LEGACY_NAME
     try:
         # Only the kind of link the installer made, and only once it dangles.

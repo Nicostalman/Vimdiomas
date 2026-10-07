@@ -44,8 +44,9 @@ Run from the repo root. Docker is OrbStack's.
         'cp -r /src /tmp/v && pip install -q /tmp/v && vimdiomas; echo "exit $?"; ls -A ~/.config ~/.cache 2>&1'
 
       The output is `Vimdiomas runs only on macOS and Arch Linux. This is
-      Debian GNU/Linux ….`, then `exit 1`, and neither directory exists. The same
-      for `vimdiomas doctor`.
+      Debian GNU/Linux ….`, then `exit 1`, and `~/.config` does not exist
+      (`~/.cache` holds only `pip`, from the install). The same for `vimdiomas
+      doctor`, `compile` and `wizard`.
 - [ ] **Arch still runs**: the `docker/Dockerfile` image, following
       `docker/README.md`, runs `vimdiomas doctor` with every line `ok` as
       before, and the wizard opens.

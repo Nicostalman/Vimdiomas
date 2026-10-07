@@ -52,9 +52,6 @@ class LinkState(Enum):
     """The app wasn't started from a console script, so there is nothing to
     link — `python -m vimdiomas` hits this."""
 
-    UNSUPPORTED = "unsupported"
-    """No user-bin convention on this platform (neither macOS nor Linux)."""
-
 
 @dataclass
 class LinkStatus:
@@ -118,11 +115,7 @@ def _which(name: str) -> Path | None:
 
 def link_status(target: Path | None = None) -> LinkStatus:
     """Inspect the link path without touching anything."""
-    bin_dir = user_bin_dir()
-    if bin_dir is None:
-        return LinkStatus(state=LinkState.UNSUPPORTED)
-
-    link_path = bin_dir / LINK_NAME
+    link_path = user_bin_dir() / LINK_NAME
     target = target or console_script_path()
     if target is None:
         return LinkStatus(state=LinkState.NO_SCRIPT, link_path=link_path)

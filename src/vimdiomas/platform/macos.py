@@ -190,7 +190,7 @@ def input_switcher() -> tuple[str, bool, str]:
     )
 
 
-def user_bin_dir() -> Path | None:
+def user_bin_dir() -> Path:
     """Where a user-installed command belongs on this machine.
 
     `~/.local/bin` is the convention shells already put on `PATH` by default
