@@ -20,7 +20,8 @@ interaction with the dev during the implementation step." Each milestone's
 *Open for the spec conversation* list is the minimum its interview has to close,
 not the whole of it.
 
-The ordering principle is **dependency order**:
+The first three milestones follow **dependency order**; M4 addresses the bugs
+recorded in the local, gitignored `bug-report.md` review of 2026-10-07:
 
 - **The platform gate comes first** (M1). The install can only run commands
   for a platform it knows, so the app has to say what it supports, and refuse
@@ -29,7 +30,9 @@ The ordering principle is **dependency order**:
   `doctor` reports. Today a TeX that has `xelatex` but lacks a package the
   template loads passes the check and then fails at the first compile. BasicTeX
   is exactly that case, and it's what M3 installs on macOS.
-- **The install comes last** (M3), on top of both.
+- **The install comes after both prerequisites** (M3).
+- **Source-file failures are contained** (M4), so a broken file cannot stop
+  work on other notebooks or crash a browsing screen.
 
 Earlier sprints' vocabulary is used below without re-explaining it. **Step 1**
 is the wizard's *Dependencies* screen (`DependenciesScreen`). **Step 3** is its
@@ -179,6 +182,41 @@ button and passes the recheck without restarting the wizard; on a Mac with no
 TeX, *Install missing* followed by ticking Chinese at step 3 ends with a
 Chinese notebook that compiles, with no new terminal opened. No install command
 or hint appears anywhere on step 1. The full test suite passes.
+
+---
+
+## M4 · Unreadable notebook files
+
+The local bug review of 2026-10-07 found that one `.md` file
+with invalid UTF-8 aborts a whole Compile run and raises during Browse's tag
+filter, even though tree discovery and content search already tolerate it.
+
+**Deliverable.**
+
+- Compile reports a read or decode failure for the affected source, continues
+  with other files, and keeps successful compile results and cache stamps.
+  The CLI and notebook menu show the failure without a traceback or a lost TUI
+  session.
+- Single-file compile paths used by Entry, Browse and Inspect Tree report the
+  same failure to the user without taking down the app.
+- Browse's tag filter skips unreadable source files and still returns results
+  from readable files, in both filename and content modes.
+- Inspect Tree's MD preview shows a read-error message for an undecodable file;
+  its tree warning remains visible.
+
+**Open for the spec conversation.**
+
+- The exact failure text and whether it distinguishes an unreadable file from
+  invalid UTF-8.
+- Whether Browse should also show the existing tree warning while filtering,
+  or only omit the unreadable file and keep the remaining results usable.
+- How to handle a file that becomes unreadable between discovery and selection.
+
+**Done when.** With an invalid UTF-8 `.md` before a valid one, Compile reports
+one failed source and compiles the valid file; the CLI exits nonzero without a
+traceback, and the TUI stays open. Tag filtering still finds tags in the valid
+file in both Browse modes. Opening or previewing the bad source gives a
+user-visible error without ending the session. The full test suite passes.
 
 ---
 

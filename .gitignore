@@ -8,5 +8,6 @@ dist/
 .DS_Store
 postponedfeatures.md
 bug-report-2026-09-29.md
+bug-report.md
 specs/Sprint-*/guidelines/backlog.md
 specs/Sprint-2/guidelines/motivation.md

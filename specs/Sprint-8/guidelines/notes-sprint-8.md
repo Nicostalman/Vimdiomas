@@ -81,6 +81,15 @@ together. `tlmgr`, `pacman` and `brew` stay inside the platform layer
 (`tests/test_no_platform_leaks.py`). The hints on step 1 are still shown; M3
 removes them all together.
 
+### M4 added after the 2026-10-07 bug review
+
+The sprint originally had three milestones. The dev added M4 for the two
+reproduced invalid-UTF-8 failures in the local, gitignored `bug-report.md`:
+Compile stops before later files, and Browse's tag filter raises instead of
+using readable files. The roadmap also includes the related single-file
+compile paths and Inspect Tree's MD preview, which read the same files without
+handling decode errors. M4 follows M3 and does not change its scope.
+
 ## Assumptions
 
 Taken as given by this sprint; not verified in code or stated in the roadmap.
