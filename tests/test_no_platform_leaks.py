@@ -14,6 +14,10 @@ PACKAGE = Path(vimdiomas.__file__).parent
 
 FORBIDDEN = [
     "brew ",
+    # Sprint 8 M3: the installs live in the platform layer.
+    "tlmgr",
+    "pacman",
+    "sudo ",
     "macism",
     "/System/",
     "/Library/",

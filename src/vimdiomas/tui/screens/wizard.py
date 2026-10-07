@@ -15,7 +15,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.widgets import Button, Checkbox, Input, Static
 
-from vimdiomas import doctor, install
+from vimdiomas import doctor, install, installer, platform
 from vimdiomas.config import Config, LanguageConfig, save_config, validate_tree_root
 from vimdiomas.languages import LANGUAGES
 from vimdiomas.store import ensure_tree
@@ -76,11 +76,8 @@ def _checks_text(checks: list[doctor.Check]) -> Text:
     """One line per check, aligned into columns, ok in green / failing in
     red — a glance should be enough to see what's missing.
 
-    A failing check shows "missing" rather than `check.message` (which can
-    run long enough to be cut off at the panel's width — the CLI's `vimdiomas
-    doctor` still prints the full message, this is wizard-display only)
-    plus an arrow to its `url`, when it has one (macOS's CJK font doesn't —
-    it ships with the OS, nothing to link to).
+    A failing check shows "missing" and nothing else: no command, no link, no
+    hint on how to get it (Sprint 8 M3) — the *Install missing* button does.
 
     A check with a `detail` (what is missing, Sprint 8 M2) shows it under its
     line, red, indented and wrapped to the panel."""
@@ -96,9 +93,6 @@ def _checks_text(checks: list[doctor.Check]) -> Text:
             text.append("ok", style="green")
         else:
             text.append("missing", style="red")
-            if check.url:
-                text.append(" <-- ", style="dim")
-                text.append(check.url, style="red")
             if check.detail:
                 for line in textwrap.wrap(
                     check.detail,
@@ -237,10 +231,17 @@ class DependenciesScreen(_WizardStep):
 
     A check a language needs (xeCJK and the CJK font, for Chinese) is listed
     here, labelled with the language, but never blocks: which languages are
-    wanted isn't known until step 3, which checks them (Sprint 6 M7)."""
+    wanted isn't known until step 3, which checks them (Sprint 6 M7).
+
+    *Install missing* appears while a required or optional check is missing
+    that the platform can install (Sprint 8 M3): it asks, runs the install in
+    the suspended terminal, then rechecks."""
 
     def content_ids(self) -> list[str]:
-        return ["recheck-button", "next-button"]
+        ids = ["recheck-button", "next-button"]
+        if self.query_one("#install-button", Button).display:
+            return ["install-button", *ids]
+        return ids
 
     def compose(self) -> ComposeResult:
         with Backpanel():
@@ -252,6 +253,7 @@ class DependenciesScreen(_WizardStep):
                 )
                 yield Static(id="dependencies-list")
                 yield Static(id="dependencies-error", classes="wizard-error")
+                yield Button("Install missing", id="install-button")
                 yield Button("Recheck", id="recheck-button")
                 yield Button("Next", id="next-button")
                 yield FooterHint(
@@ -263,17 +265,69 @@ class DependenciesScreen(_WizardStep):
         super().on_mount()
         self.query_one("#dependencies-error", Static).display = False
         self._spinner_timer = None
+        self._after_install = False
         self._refresh_checks()
 
     def _refresh_checks(self) -> None:
         self._checks = doctor.run()
         self.query_one("#dependencies-list", Static).update(_checks_text(self._checks))
+        self._update_install_button()
 
     def _blocking(self) -> bool:
         return any(not check.ok and check.required for check in self._checks)
 
+    def _installable_missing(self) -> list[doctor.Check]:
+        """What *Install missing* would install: the required and optional
+        checks that fail and that the platform can install. A language's own
+        (xeCJK, the CJK font) are step 3's offer."""
+        return [
+            check
+            for check in self._checks
+            if not check.ok and not check.needed_for and platform.installable(check.key)
+        ]
+
+    def _update_install_button(self) -> None:
+        button = self.query_one("#install-button", Button)
+        button.display = bool(self._installable_missing())
+        if not button.display and button.has_focus:
+            self.query_one("#next-button", Button).focus()
+
+    @on(Button.Pressed, "#install-button")
+    def _on_install(self, event: Button.Pressed) -> None:
+        error_widget = self.query_one("#dependencies-error", Static)
+        missing = self._installable_missing()
+        if not missing:
+            return
+        if not platform.package_manager_available():
+            error_widget.update(
+                f"{platform.PACKAGE_MANAGER} isn't installed, "
+                "so Vimdiomas can't install anything."
+            )
+            error_widget.display = True
+            return
+        error_widget.display = False
+        names = installer.join_names([check.name for check in missing])
+        plural = len(missing) > 1
+        message = (
+            f"{names} {'are' if plural else 'is'} missing. "
+            f"Install {'them' if plural else 'it'} now? "
+            "Your password may be asked for in the terminal."
+        )
+
+        def _answered(confirmed: bool | None) -> None:
+            if not confirmed:
+                return
+            installer.run(self.app, missing)
+            self._start_recheck(after_install=True)
+
+        self.app.push_screen(ConfirmDialog(message), _answered)
+
     @on(Button.Pressed, "#recheck-button")
     def _on_recheck(self, event: Button.Pressed) -> None:
+        self._start_recheck()
+
+    def _start_recheck(self, after_install: bool = False) -> None:
+        self._after_install = after_install
         self.query_one("#dependencies-error", Static).display = False
         self.query_one("#recheck-button", Button).disabled = True
         self._spinner_frame = 0
@@ -305,14 +359,23 @@ class DependenciesScreen(_WizardStep):
         self._checks = checks
         self.query_one("#dependencies-list", Static).update(_checks_text(checks))
         self.query_one("#recheck-button", Button).disabled = False
+        self._update_install_button()
+        if self._after_install:
+            # The recheck decides, not the commands' exit codes: say what the
+            # install left missing, and nothing else.
+            left = self._installable_missing()
+            if left:
+                error_widget = self.query_one("#dependencies-error", Static)
+                error_widget.update(
+                    f"Still missing: {installer.join_names([check.name for check in left])}."
+                )
+                error_widget.display = True
 
     @on(Button.Pressed, "#next-button")
     def _on_next(self, event: Button.Pressed) -> None:
         error_widget = self.query_one("#dependencies-error", Static)
         if self._blocking():
-            error_widget.update(
-                "A required dependency is still missing; fix it and recheck."
-            )
+            error_widget.update("A required dependency is still missing.")
             error_widget.display = True
             return
         error_widget.display = False

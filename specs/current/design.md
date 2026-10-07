@@ -246,20 +246,55 @@ there; step 3 checks them when such a language is ticked, and Settings › Add a
 language checks them when one is added. Both surfaces handle a missing one the
 same way, through one shared helper:
 
-- With a command for the platform: a confirmation says what is missing and
-  what will run. `y` suspends the TUI, runs each command in the user's
-  terminal so `sudo` can ask for a password, waits for Enter so the output can
-  be read, then checks again. Only what the check finds decides: a command that
-  failed, or one that never ran, is reported as the dependency still missing.
-- With no command (a font nothing installs), or if
-  declined, or still missing afterwards: the language is refused with a line
-  naming what is missing and the command or message. Nothing is written.
-- Only a language's own dependencies are ever offered for installation.
+- If the platform can install every one that is missing and its package
+  manager is there: a confirmation says what is missing, without a command
+  (`Chinese needs xeCJK, which is missing. Install it now? Your password may
+  be asked for in the terminal.`). `y` installs them as *Installing missing
+  dependencies* below describes, then checks again. Only what the check finds
+  decides: a command that failed, or one that never ran, is reported as the
+  dependency still missing.
+- If the platform cannot install one (a font nothing installs), the package
+  manager is missing, the offer was declined, or something is still missing
+  afterwards: the language is refused with a line naming what is missing
+  (`Chinese needs xeCJK, which is missing.`) and, for a missing package
+  manager, one more (`Homebrew isn't installed, so Vimdiomas can't install
+  it.`). Nothing is written.
+- Only a language's own dependencies are offered from here. Everything else is
+  step 1's *Install missing*.
 
 A check that can say *what* is missing (the LaTeX packages, Sprint 8 M2) does:
 at step 1 its `missing` line is followed by the detail on the line(s) under it,
 red, indented two spaces and wrapped to the panel, so the columns above keep
 their alignment. The refusal words it `<name> missing: <detail>.`
+
+### Installing missing dependencies
+
+**The app never shows an install command or a hint on how to get something,
+on any surface**: it says what is missing and, where it can, offers to install
+it (Sprint 8 M3). Step 1, step 3, Settings › Add a language, Inspect Tree and
+`vimdiomas doctor` all follow it; `doctor` prints `missing`, or `missing:
+<detail>`.
+
+Step 1 has a third button, **Install missing**, placed first (*Install
+missing*, *Recheck*, *Next*). It is shown while a required or optional check is
+missing that the platform can install (a language's own checks are step 3's)
+and hidden otherwise, and it has the focus when shown at mount. Pressing it:
+
+- Without the package manager (Homebrew on macOS, pacman on Arch), the error
+  line says `<manager> isn't installed, so Vimdiomas can't install anything.`
+  and nothing else happens.
+- Otherwise a confirmation names what is missing and says the password may be
+  asked for; `n`/`esc` does nothing. `y` suspends the TUI and runs the install
+  in the user's own terminal, so `sudo` and the BasicTeX installer can ask for
+  a password: each command is printed as it runs, a failing one does not stop
+  the next, and Enter returns to the app. The recheck then runs with its
+  spinner, and it alone decides what is reported: nothing left, and the error
+  line and the button go; something left, and the line says `Still missing:
+  <names>.`, the button stays, and pressing it again installs only what is
+  left.
+
+Step 1 and step 3 share one install (`vimdiomas/installer.py`), so they cannot
+differ in how they run it.
 
 ### The focus look
 
@@ -424,9 +459,10 @@ Something going wrong with one file never ends the session (Sprint 6 M2):
 - **`Enter` in Inspect Tree's PDF mode** on a file with no PDF, when that
   file fails to compile, shows an error notification with the same error
   lines and opens no viewer.
-- **`Enter` in MD mode without nvim** shows a warning naming the install
-  command, the same shape as the preview pane's missing-poppler message, and
-  the screen stays as it was.
+- **`Enter` in MD mode without nvim** shows a warning that nvim isn't
+  installed (`nvim isn't installed, so MD mode can't open files.`), the same
+  shape as the preview pane's missing-poppler message, and the screen stays as
+  it was.
 - **A rename or creation the filesystem refuses** (permissions, a full disk)
   shows the OS's reason in an error notification; the tree is left as the
   disk has it.
@@ -522,12 +558,12 @@ when the file has any (see *A file edited by hand is checked, never refused*):
 - **A directory (including the root)**: "Select a file to preview."
 - **A file, MD mode**: the raw `.md` source text, matching what `Enter`
   opens in nvim in that mode. nvim is optional too: without it, `Enter`
-  shows a warning with the install command and does nothing else (see
+  shows a warning that it isn't installed and does nothing else (see
   *Failures are reported, never fatal*).
 - **A file, PDF mode, no compiled PDF next to it**: "No compiled PDF for
   this file."
-- **A file, PDF mode, no `pdftoppm` on `PATH`**: a message pointing at
-  `brew install poppler` — poppler is optional, so this never blocks
+- **A file, PDF mode, no `pdftoppm` on `PATH`**: `poppler isn't installed, so
+  there's no PDF preview.` — poppler is optional, so this never blocks
   anything else on the screen.
 - **A file, PDF mode, poppler present, terminal without kitty-graphics
   support**: the PDF's plain text (`pdftotext`), not a rendered page.

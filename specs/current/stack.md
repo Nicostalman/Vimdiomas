@@ -146,7 +146,7 @@ Still Chinese by design: `pinyin.py`, `_pair_hanzi_pinyin` and the `\HanziPinyin
 
 A notebook's tree is created with its `Vocabulary/` and `Grammar/` folders by `store.ensure_tree`, which the wizard and the notebook menu both call; an existing folder of either name in any case is left as it is (Sprint 6 M6).
 
-`doctor` knows which languages need what (Sprint 6 M7): a `Check` has `needed_for` (the registry languages whose kind sets a `cjk_font`, derived from `LANGUAGES`, for xeCJK and the font) and `install` (the platform's command, `""` when there is none). They are `required=False`; `required` keeps its meaning of "every install". `doctor.missing_for(checks, languages)` is the one rule for what blocks an install — every `required` check that failed, plus any needed by a given language — used by `vimdiomas doctor` (which reads the config if there is one and fails only on `missing_for` its languages, a German-only install passing without xeCJK), the wizard's languages step, and Settings › Add a language. `doctor.label(check)` is what is printed in brackets: `required`, `optional`, or the languages. The offer to install a missing dependency is `tui/screens/dependencies.py`, shared by the wizard and Settings; it suspends the TUI and runs the platform's command without a shell.
+`doctor` knows which languages need what (Sprint 6 M7): a `Check` has `needed_for` (the registry languages whose kind sets a `cjk_font`, derived from `LANGUAGES`, for xeCJK and the font) and, since Sprint 8 M3, a `key`: the name the platform layer installs it by (`pandoc`, `xelatex`, `latex-packages`, `xecjk`, `cjk-font`, `input-switcher`, `nvim`, `pdftoppm`). A `Check` carries no command, message or link: `vimdiomas doctor` prints `ok`, `missing` or `missing: <detail>`. They are `required=False`; `required` keeps its meaning of "every install". `doctor.missing_for(checks, languages)` is the one rule for what blocks an install — every `required` check that failed, plus any needed by a given language — used by `vimdiomas doctor` (which reads the config if there is one and fails only on `missing_for` its languages, a German-only install passing without xeCJK), the wizard's languages step, and Settings › Add a language. `doctor.label(check)` is what is printed in brackets: `required`, `optional`, or the languages. The offer to install a missing language dependency is `tui/screens/dependencies.py`, shared by the wizard and Settings. Every install, that offer and step 1's *Install missing* (Sprint 8 M3), goes through `vimdiomas/installer.py`: `installer.run(app, checks)` suspends the TUI, hands the checks' keys to `platform.install` with a runner that prints each command and runs it without a shell, extends the app's `PATH` again, and waits for Enter. It never raises, and reports nothing to the TUI: the caller's recheck decides what is still missing.
 
 ## PDF — pandoc → xelatex with xeCJK
 
@@ -158,7 +158,7 @@ pandoc is already installed and is the obvious markdown-to-anything tool; `xelat
 sudo tlmgr install xecjk
 ```
 
-The program's `doctor` command checks for it and prints exactly that line rather than surfacing a LaTeX error. (On Arch Linux, xeCJK comes with the `texlive-langchinese` package, and `doctor` prints that package's install line instead.)
+The program's `doctor` command checks for it and reports it missing rather than surfacing a LaTeX error, and the app installs it (Sprint 8 M3): on macOS `sudo tlmgr update --self` then `sudo tlmgr install xecjk` (a fresh BasicTeX's `tlmgr` refuses to install anything before it has updated itself), on Arch the `texlive-langchinese` package.
 
 The CJK font is **Songti SC** on macOS, present by default
 (`/System/Library/Fonts/Supplemental/Songti.ttc`) — nothing needs
@@ -347,12 +347,28 @@ location:
     `cjk_font_installed()` — the compiled notebook's face and how to check
     for it (a file on macOS, `fc-list` on Linux). This is the font name's
     single source of truth, which `compile.py` passes to the template;
-  - `install_hint(dependency)` — the one-line install command `doctor`
-    shows (`brew …`, or `pacman …` on Arch), or `None` when there isn't one;
-  - `latex_install_hint(packages)` — the command that installs exactly the
-    named LaTeX packages (`sudo tlmgr install …` / `sudo pacman -S …`),
-    through each module's `LATEX_PACKAGES` table (name → `tlmgr` / pacman
-    package), deduplicated; `None` for none (Sprint 8 M2);
+  - `install(keys, run, missing_latex)` (Sprint 8 M3) — runs, through the
+    `run` it is given, the commands that install the dependencies named by
+    `doctor.Check.key`, ignoring any it can't install. `missing_latex()` is
+    `doctor`'s package probe, called after a TeX is installed so it sees the
+    new one. macOS: one `brew install` for pandoc, macism, neovim and poppler
+    (`BREW_FORMULAS`); `brew install --cask basictex` only when `xelatex` is
+    wanted; then `sudo <tlmgr> update --self` and `sudo <tlmgr> install …`
+    (by `tlmgr`'s absolute path, since `sudo` may reset `PATH`) for what
+    `missing_latex()` reports and for xeCJK, skipped when no `tlmgr` is
+    found. Arch: one `sudo pacman -S --needed --noconfirm …` for the
+    `PACMAN_PACKAGES` of every key plus the `LATEX_PACKAGES` targets of what
+    `missing_latex()` reports (all of them when it returns `None`), each
+    package once. A failing command doesn't stop the next;
+  - `installable(key)`, `package_manager_available()` and `PACKAGE_MANAGER`
+    (`Homebrew` / `pacman`), which the screens ask before offering an install;
+  - `extend_path()` — macOS appends `/opt/homebrew/bin`, `/usr/local/bin` and
+    `/Library/TeX/texbin` to the process's own `PATH` where they exist and
+    aren't there already (a TeX installed mid-session, or a shell that never
+    ran `brew shellenv`); a no-op on Arch. `cli.main()` calls it before
+    dispatching and `installer.run` after each install; no shell file is
+    touched. Each module's `LATEX_PACKAGES` table (name → `tlmgr` / pacman
+    package) is Sprint 8 M2's;
   - `input_switcher()` — the `(name, available, url)` of the switching tool,
     for `doctor`'s optional check;
   - `user_bin_dir()` (`~/.local/bin` on both) and `DEFAULT_SHELL_CONFIG`
@@ -362,7 +378,7 @@ location:
   (`shutil.which` for pandoc/xelatex/nvim) stay where they are, outside the
   layer. `tests/test_no_platform_leaks.py` fails if a string literal outside
   the layer names `brew`, `macism`, `/System/`, `/Library/`,
-  `defaults export` or `xdg-open`.
+  `defaults export`, `xdg-open`, `tlmgr`, `pacman` or `sudo `.
 
   On Linux, the switching framework is probed once per process (fcitx5
   first, then ibus). fcitx5's sources come from the INI profile at
@@ -399,7 +415,8 @@ location:
   up in a single `kpsewhich` call and matched back by basename. A `Check` has
   a `detail` — what is missing (`caption, xcolor`, or `needs a TeX
   distribution` when there is no `kpsewhich`) — which the wizard prints under
-  the `missing` line. Its `install` is built from the missing packages only.
+  the `missing` line. `installer.run` re-asks the same probe (`doctor.missing_latex_packages`) so
+only the missing packages are installed.
   A test fails if the template and the table disagree, or if either
   platform's `LATEX_PACKAGES` lists different names.
 

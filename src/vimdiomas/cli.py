@@ -6,6 +6,7 @@ from vimdiomas import doctor
 from vimdiomas.compile import compile_all
 from vimdiomas.config import CONFIG_PATH, ConfigNotFoundError, load_config, migrate_legacy_paths
 from vimdiomas.languages import get_language, is_functional
+from vimdiomas.platform import extend_path
 from vimdiomas.tui.app import VimdiomasApp
 from vimdiomas.tui.screens.wizard import WizardApp
 
@@ -79,7 +80,10 @@ def _compile(force: bool = False) -> None:
 def _doctor() -> None:
     checks = doctor.run()
     for check in checks:
-        status = "ok" if check.ok else check.message
+        if check.ok:
+            status = "ok"
+        else:
+            status = f"missing: {check.detail}" if check.detail else "missing"
         print(f"[{doctor.label(check)}] {check.name}: {status}")
 
     # What blocks depends on the languages: with a config, those it
@@ -94,6 +98,10 @@ def _doctor() -> None:
 
 def main() -> None:
     migrate_legacy_paths()
+    # Before anything dispatches, so the TUI, `compile` and `doctor` all see
+    # the package manager's tools, even from a shell that never put them on
+    # PATH (Sprint 8 M3).
+    extend_path()
     # Dev-only escape hatch, checked before argparse rather than registered
     # as a subparser: opens the wizard even with a config already in place,
     # without moving it aside first. Kept out of `argparse` entirely (not

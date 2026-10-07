@@ -21,7 +21,6 @@ from vimdiomas.compile import notebook_path_for
 from vimdiomas.languages import LanguageKind
 from vimdiomas.models import Warning
 from vimdiomas.pdf_preview import RasterCache, extract_text, pdftoppm_available
-from vimdiomas.platform import install_hint
 from vimdiomas.store import DirNode, FileNode, is_grammar, validate_name, walk
 from vimdiomas.terminal import (
     cell_pixel_size,
@@ -247,14 +246,8 @@ def warnings_text(warnings: list[Warning]) -> Text:
 
 MSG_SELECT_FILE = "Select a file to preview."
 MSG_NO_PDF = "No compiled PDF for this file."
-_POPPLER_COMMAND = install_hint("pdftoppm")
-MSG_NO_POPPLER = "Install poppler for a PDF preview" + (
-    f" (`{_POPPLER_COMMAND}`)." if _POPPLER_COMMAND else "."
-)
-_NVIM_COMMAND = install_hint("nvim")
-MSG_NO_NVIM = "nvim is not installed, so MD mode can't open files" + (
-    f" (`{_NVIM_COMMAND}`)." if _NVIM_COMMAND else "."
-)
+MSG_NO_POPPLER = "poppler isn't installed, so there's no PDF preview."
+MSG_NO_NVIM = "nvim isn't installed, so MD mode can't open files."
 
 
 class PdfPreview(Static):

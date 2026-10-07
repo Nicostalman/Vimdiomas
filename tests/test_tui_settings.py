@@ -49,8 +49,8 @@ def sources(monkeypatch):
 
 def _all_ok():
     return [
-        doctor.Check("pandoc", required=True, ok=True),
-        doctor.Check("xeCJK", required=False, ok=True, needed_for=("Chinese",)),
+        doctor.Check("pandoc", "pandoc", required=True, ok=True),
+        doctor.Check("xeCJK", "xecjk", required=False, ok=True, needed_for=("Chinese",)),
     ]
 
 
@@ -553,16 +553,19 @@ def german_only(tmp_path, monkeypatch):
 
 def _chinese_needs_xecjk():
     return [
-        doctor.Check("pandoc", required=True, ok=True),
-        doctor.Check(
-            "xeCJK",
-            required=False,
-            ok=False,
-            message="sudo tlmgr install xecjk",
-            needed_for=("Chinese",),
-            install="sudo tlmgr install xecjk",
-        ),
+        doctor.Check("pandoc", "pandoc", required=True, ok=True),
+        doctor.Check("xeCJK", "xecjk", required=False, ok=False, needed_for=("Chinese",)),
     ]
+
+
+@pytest.fixture(autouse=True)
+def _platform_can_install(monkeypatch):
+    """The offer, with the platform able to install everything and its package
+    manager present: the real answer depends on the machine running the tests."""
+    from vimdiomas.tui.screens import dependencies
+
+    monkeypatch.setattr(dependencies.platform, "installable", lambda key: True)
+    monkeypatch.setattr(dependencies.platform, "package_manager_available", lambda: True)
 
 
 async def test_adding_a_non_chinese_language_never_asks_about_xecjk(german_only, monkeypatch):
@@ -578,12 +581,9 @@ async def test_adding_a_non_chinese_language_never_asks_about_xecjk(german_only,
 
 
 async def test_adding_chinese_without_xecjk_goes_through_the_offer(german_only, monkeypatch):
-    from contextlib import contextmanager
-    from types import SimpleNamespace
-
     from vimdiomas.tui.screens import dependencies
 
-    commands = []
+    installs = []
     states = [_chinese_needs_xecjk, _all_ok]
 
     def run():
@@ -591,19 +591,12 @@ async def test_adding_chinese_without_xecjk_goes_through_the_offer(german_only, 
 
     monkeypatch.setattr(doctor, "run", run)
     monkeypatch.setattr(
-        dependencies,
-        "subprocess",
-        SimpleNamespace(run=lambda command, **kw: commands.append(command)),
+        dependencies.installer,
+        "run",
+        lambda app, checks: installs.append([check.key for check in checks]),
     )
-    monkeypatch.setattr("builtins.input", lambda prompt="": "")
     app = VimdiomasApp(german_only)
     async with app.run_test() as pilot:
-
-        @contextmanager
-        def suspend():
-            yield
-
-        pilot.app.suspend = suspend
         await _select(pilot, 1)  # Settings
         await _select(pilot, ADD_LANGUAGE)
         await _select(pilot, 0)  # Chinese
@@ -614,7 +607,7 @@ async def test_adding_chinese_without_xecjk_goes_through_the_offer(german_only, 
 
         assert isinstance(pilot.app.screen, SettingsScreen)
         assert pilot.app.config.language("Chinese") is not None
-    assert commands == [["sudo", "tlmgr", "install", "xecjk"]]
+    assert installs == [["xecjk"]]
 
 
 async def test_declining_the_offer_adds_nothing_and_says_what_is_missing(german_only, monkeypatch):
@@ -632,7 +625,7 @@ async def test_declining_the_offer_adds_nothing_and_says_what_is_missing(german_
         assert isinstance(screen, AddLanguageFormScreen)
         error = str(screen.query_one("#add-language-error").render())
         assert "Chinese needs xeCJK, which is missing." in error
-        assert "sudo tlmgr install xecjk" in error
+        assert "tlmgr" not in error and "`" not in error
         assert pilot.app.config.language("Chinese") is None
         assert not german_only.tree_root("Chinese").exists()
 
