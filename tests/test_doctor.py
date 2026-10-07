@@ -1,4 +1,7 @@
 import platform
+import re
+import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -9,6 +12,8 @@ on_macos = pytest.mark.skipif(platform.system() != "Darwin", reason="macOS parit
 
 SWITCHER_NAME = input_switcher()[0]
 
+LATEX_NAMES = [name for name, _ in doctor.LATEX_PACKAGES]
+
 
 def _by_name(checks, name):
     return next(check for check in checks if check.name == name)
@@ -16,9 +21,14 @@ def _by_name(checks, name):
 
 def _all_missing(monkeypatch):
     monkeypatch.setattr(doctor.shutil, "which", lambda name: None)
+    monkeypatch.setattr(doctor, "_missing_latex_packages", lambda: list(LATEX_NAMES))
     monkeypatch.setattr(doctor, "_has_xecjk", lambda: False)
     monkeypatch.setattr(doctor, "cjk_font_installed", lambda: False)
     monkeypatch.setattr(doctor, "pdftoppm_available", lambda: False)
+
+
+def _latex(monkeypatch, missing):
+    monkeypatch.setattr(doctor, "_missing_latex_packages", lambda: missing)
 
 
 def test_run_reports_all_required_ok_on_this_machine():
@@ -37,10 +47,10 @@ def test_run_reports_all_ok_on_this_mac():
     assert all(check.ok for check in checks)
 
 
-def test_required_checks_are_pandoc_and_xelatex():
+def test_required_checks_are_pandoc_xelatex_and_the_latex_packages():
     checks = doctor.run()
     required_names = {check.name for check in checks if check.required}
-    assert required_names == {"pandoc", "xelatex"}
+    assert required_names == {"pandoc", "xelatex", "LaTeX packages"}
 
 
 def test_xecjk_and_the_font_are_needed_for_chinese_only():
@@ -87,6 +97,7 @@ def _names(checks):
 
 def test_missing_for_german_ignores_a_missing_xecjk_and_font(monkeypatch):
     _all_missing(monkeypatch)
+    _latex(monkeypatch, [])
     monkeypatch.setattr(doctor.shutil, "which", lambda name: f"/usr/bin/{name}")
 
     assert doctor.missing_for(doctor.run(), ["German"]) == []
@@ -94,6 +105,7 @@ def test_missing_for_german_ignores_a_missing_xecjk_and_font(monkeypatch):
 
 def test_missing_for_chinese_returns_the_cjk_pair(monkeypatch):
     _all_missing(monkeypatch)
+    _latex(monkeypatch, [])
     monkeypatch.setattr(doctor.shutil, "which", lambda name: f"/usr/bin/{name}")
 
     missing = doctor.missing_for(doctor.run(), ["German", "Chinese"])
@@ -104,11 +116,13 @@ def test_missing_for_chinese_returns_the_cjk_pair(monkeypatch):
 def test_missing_for_always_returns_a_missing_required_check(monkeypatch):
     _all_missing(monkeypatch)
 
-    assert _names(doctor.missing_for(doctor.run(), ["German"])) == ["pandoc", "xelatex"]
-    assert _names(doctor.missing_for(doctor.run(), [])) == ["pandoc", "xelatex"]
+    expected = ["pandoc", "xelatex", "LaTeX packages"]
+    assert _names(doctor.missing_for(doctor.run(), ["German"])) == expected
+    assert _names(doctor.missing_for(doctor.run(), [])) == expected
 
 
 def test_missing_for_ignores_a_check_that_is_ok(monkeypatch):
+    _latex(monkeypatch, [])
     monkeypatch.setattr(doctor.shutil, "which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr(doctor, "_has_xecjk", lambda: True)
     monkeypatch.setattr(doctor, "cjk_font_installed", lambda: False)
@@ -198,6 +212,7 @@ def test_pandoc_url_points_at_its_github_repo():
 def test_every_check_but_the_font_carries_a_url_on_macos():
     checks = doctor.run()
     with_url = {check.name for check in checks if check.url}
+    # `LaTeX packages` has none: a line that names packages has no room for one.
     assert with_url == {"pandoc", "xelatex", "xeCJK", "macism", "nvim", "pdftoppm"}
     # The CJK font ships with macOS — there's no repo to point at.
     assert _by_name(checks, CJK_FONT_NAME).url == ""
@@ -221,6 +236,14 @@ def test_macos_messages_are_unchanged(monkeypatch):
             True,
             "xelatex not found: install a TeX Live distribution",
             "https://github.com/TeX-Live/texlive-source",
+        ),
+        (
+            "LaTeX packages",
+            True,
+            "LaTeX packages missing: fontspec, geometry, longtable, caption, array, "
+            "xcolor, lmodern, lmodern fonts (e.g. `sudo tlmgr install fontspec geometry "
+            "tools caption xcolor lm`)",
+            "",
         ),
         (
             "xeCJK",
@@ -265,6 +288,7 @@ def _as_linux_arch(monkeypatch):
     from vimdiomas.platform import linux
 
     monkeypatch.setattr(doctor, "install_hint", linux.install_hint)
+    monkeypatch.setattr(doctor, "latex_install_hint", linux.latex_install_hint)
     monkeypatch.setattr(doctor, "CJK_FONT_NAME", linux.CJK_FONT_NAME)
     monkeypatch.setattr(doctor, "CJK_FONT_PATH", linux.CJK_FONT_PATH)
     monkeypatch.setattr(doctor, "CJK_FONT_URL", linux.CJK_FONT_URL)
@@ -282,8 +306,12 @@ def test_linux_messages_carry_pacman_commands_and_no_brew(monkeypatch):
 
     assert messages["pandoc"] == "pandoc not found: install it (e.g. `sudo pacman -S pandoc-cli`)"
     assert messages["xelatex"] == (
-        "xelatex not found: install a TeX Live distribution (e.g. `sudo pacman -S texlive-xetex "
-        "texlive-latexrecommended texlive-fontsrecommended`)"
+        "xelatex not found: install a TeX Live distribution (e.g. `sudo pacman -S texlive-xetex`)"
+    )
+    assert messages["LaTeX packages"] == (
+        "LaTeX packages missing: fontspec, geometry, longtable, caption, array, xcolor, "
+        "lmodern, lmodern fonts (e.g. `sudo pacman -S texlive-latexrecommended texlive-latex "
+        "texlive-fontsrecommended`)"
     )
     assert messages["xeCJK"] == "sudo pacman -S texlive-langchinese"
     assert messages["Noto Serif CJK SC"] == (
@@ -292,3 +320,170 @@ def test_linux_messages_carry_pacman_commands_and_no_brew(monkeypatch):
     assert "fcitx5 or ibus" in messages
     assert not any("brew" in message for message in messages.values())
     assert _by_name(checks, "Noto Serif CJK SC").url == "https://github.com/notofonts/noto-cjk"
+
+
+# --- LaTeX packages (Sprint 8 M2) -------------------------------------------
+
+
+def test_latex_packages_complete_is_ok_with_no_detail_or_command(monkeypatch):
+    _latex(monkeypatch, [])
+
+    check = _by_name(doctor.run(), "LaTeX packages")
+
+    assert check.ok
+    assert check.required
+    assert check.detail == ""
+    assert check.install == ""
+    assert check.needed_for == ()
+    assert check.url == ""
+
+
+def test_latex_packages_name_what_is_missing_on_macos_shape(monkeypatch):
+    from vimdiomas.platform import macos
+
+    monkeypatch.setattr(doctor, "latex_install_hint", macos.latex_install_hint)
+    _latex(monkeypatch, ["caption", "xcolor"])
+
+    check = _by_name(doctor.run(), "LaTeX packages")
+
+    assert not check.ok
+    assert check.detail == "caption, xcolor"
+    assert check.install == "sudo tlmgr install caption xcolor"
+    assert check.message == (
+        "LaTeX packages missing: caption, xcolor (e.g. `sudo tlmgr install caption xcolor`)"
+    )
+
+
+def test_latex_packages_install_covers_only_the_missing_on_arch(monkeypatch):
+    _as_linux_arch(monkeypatch)
+    _latex(monkeypatch, ["lmodern", "lmodern fonts"])
+
+    check = _by_name(doctor.run(), "LaTeX packages")
+
+    assert check.detail == "lmodern, lmodern fonts"
+    assert check.install == "sudo pacman -S texlive-fontsrecommended"
+
+
+def test_latex_packages_of_a_bare_arch_texlive_ask_for_the_two_collections(monkeypatch):
+    _as_linux_arch(monkeypatch)
+    _latex(monkeypatch, ["fontspec", "caption", "xcolor", "lmodern", "lmodern fonts"])
+
+    assert _by_name(doctor.run(), "LaTeX packages").install == (
+        "sudo pacman -S texlive-latexrecommended texlive-fontsrecommended"
+    )
+
+
+def test_latex_packages_without_kpsewhich_fail_without_naming_packages(monkeypatch):
+    _as_linux_arch(monkeypatch)
+    _latex(monkeypatch, None)
+
+    check = _by_name(doctor.run(), "LaTeX packages")
+
+    assert not check.ok
+    assert check.detail == "needs a TeX distribution"
+    assert check.install == ""
+    assert check.message == (
+        "LaTeX packages can't be checked: no TeX distribution found (kpsewhich is missing)"
+    )
+
+
+def test_latex_packages_without_a_platform_command_have_no_example(monkeypatch):
+    monkeypatch.setattr(doctor, "latex_install_hint", lambda packages: None)
+    _latex(monkeypatch, ["caption"])
+
+    check = _by_name(doctor.run(), "LaTeX packages")
+
+    assert check.install == ""
+    assert check.message == "LaTeX packages missing: caption"
+
+
+@pytest.mark.parametrize("languages", [["German"], []])
+def test_missing_for_includes_the_failing_latex_packages(monkeypatch, languages):
+    monkeypatch.setattr(doctor.shutil, "which", lambda name: f"/usr/bin/{name}")
+    _latex(monkeypatch, ["caption"])
+
+    assert "LaTeX packages" in _names(doctor.missing_for(doctor.run(), languages))
+
+
+# --- _missing_latex_packages: one kpsewhich call -----------------------------
+
+
+def _kpsewhich_prints(monkeypatch, stdout):
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout, "")
+
+    monkeypatch.setattr(doctor.subprocess, "run", fake_run)
+    return calls
+
+
+def test_missing_latex_packages_matches_found_files_by_basename(monkeypatch):
+    found = [
+        "/usr/share/texmf-dist/tex/latex/geometry/geometry.sty",
+        "/usr/share/texmf-dist/tex/latex/tools/longtable.sty",
+        "/usr/share/texmf-dist/tex/latex/tools/array.sty",
+    ]
+    calls = _kpsewhich_prints(monkeypatch, "\n".join(found) + "\n")
+
+    assert doctor._missing_latex_packages() == [
+        "fontspec",
+        "caption",
+        "xcolor",
+        "lmodern",
+        "lmodern fonts",
+    ]
+    assert len(calls) == 1
+    assert calls[0] == ["kpsewhich", *(probe for _, probe in doctor.LATEX_PACKAGES)]
+
+
+def test_missing_latex_packages_is_empty_when_everything_is_found(monkeypatch):
+    out = "".join(f"/texmf/{probe}\n" for _, probe in doctor.LATEX_PACKAGES)
+    _kpsewhich_prints(monkeypatch, out)
+
+    assert doctor._missing_latex_packages() == []
+
+
+def test_missing_latex_packages_names_all_when_none_is_found(monkeypatch):
+    _kpsewhich_prints(monkeypatch, "")
+
+    assert doctor._missing_latex_packages() == LATEX_NAMES
+
+
+def test_missing_latex_packages_is_none_without_kpsewhich(monkeypatch):
+    def fake_run(command, **kwargs):
+        raise FileNotFoundError("kpsewhich")
+
+    monkeypatch.setattr(doctor.subprocess, "run", fake_run)
+
+    assert doctor._missing_latex_packages() is None
+
+
+# --- The table, the template and the platforms agree -------------------------
+
+
+def _unconditional_packages() -> set[str]:
+    template = (Path(doctor.__file__).parent / "templates" / "xecjk.tex").read_text()
+    template = re.sub(r"\$if\(cjkfont\)\$.*?\$endif\$", "", template, flags=re.DOTALL)
+    return set(re.findall(r"\\usepackage(?:\[[^\]]*\])?\{([^}]*)\}", template))
+
+
+def test_every_package_the_template_always_loads_has_a_row():
+    rows = {name for name, _ in doctor.LATEX_PACKAGES}
+    loaded = {
+        package.strip()
+        for packages in _unconditional_packages()
+        for package in packages.split(",")
+    }
+
+    assert loaded
+    assert loaded <= rows
+
+
+def test_both_platform_tables_list_the_doctor_tables_names():
+    from vimdiomas.platform import linux, macos
+
+    names = set(LATEX_NAMES)
+    assert set(macos.LATEX_PACKAGES) == names
+    assert set(linux.LATEX_PACKAGES) == names

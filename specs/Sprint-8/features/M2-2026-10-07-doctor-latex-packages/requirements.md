@@ -142,7 +142,8 @@ same shape, exported from `platform/__init__.py` next to `install_hint`:
   on its own line, as today, and **the detail on the line(s) under it**,
   red, indented two spaces and wrapped to the panel's content width, so the
   columns above stay aligned and the status column is not pushed off a 60-wide
-  panel:
+  panel (56 columns of content once its 2 of padding each side are taken off,
+  measured in a running app; `PANEL_CONTENT_WIDTH` in `wizard.py`):
 
   ```
   [required] xelatex        ok

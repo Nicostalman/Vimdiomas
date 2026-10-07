@@ -1,5 +1,6 @@
-"""Checks the machine has what the app needs: pandoc and xelatex are required
-(compiling breaks without them); xeCJK and the CJK font are needed only by the
+"""Checks the machine has what the app needs: pandoc, xelatex and the LaTeX
+packages the template loads are required (compiling breaks without them,
+Sprint 8 M2); xeCJK and the CJK font are needed only by the
 languages whose kind sets a CJK face (Chinese) — a German-only install has no
 use for them (Sprint 6 M7); the input switcher, nvim and pdftoppm are optional
 (each only degrades one feature: input switching, Inspect Tree's MD mode,
@@ -22,6 +23,7 @@ from vimdiomas.platform import (
     cjk_font_installed,
     input_switcher,
     install_hint,
+    latex_install_hint,
 )
 
 
@@ -29,7 +31,9 @@ from vimdiomas.platform import (
 class Check:
     """One dependency. `required` means every install needs it; `needed_for`
     names the registry languages that need it when only some do. `install` is
-    the platform's command for it, or `""` when there is none to offer."""
+    the platform's command for it, or `""` when there is none to offer. `detail`
+    says what is missing, when a check can (the LaTeX packages); the wizard
+    shows it under the `missing` line."""
 
     name: str
     required: bool
@@ -38,6 +42,7 @@ class Check:
     url: str = ""
     needed_for: tuple[str, ...] = ()
     install: str = ""
+    detail: str = ""
 
 
 # Derived from the kinds, not hardcoded as "Chinese": a second language of a
@@ -65,6 +70,41 @@ def missing_for(checks: list[Check], languages: list[str]) -> list[Check]:
         if not check.ok
         and (check.required or any(name in check.needed_for for name in languages))
     ]
+
+
+# What the template loads unconditionally (Sprint 8 M2): the name shown and the
+# file `kpsewhich` looks for. `lmodern` is two rows because the style file and
+# the OpenType fonts `fontspec` then uses are separate files; one font stands
+# for the directory. A test keeps this and both platforms' tables in step with
+# `xecjk.tex`.
+LATEX_PACKAGES = (
+    ("fontspec", "fontspec.sty"),
+    ("geometry", "geometry.sty"),
+    ("longtable", "longtable.sty"),
+    ("caption", "caption.sty"),
+    ("array", "array.sty"),
+    ("xcolor", "xcolor.sty"),
+    ("lmodern", "lmodern.sty"),
+    ("lmodern fonts", "lmroman12-regular.otf"),
+)
+
+NO_TEX = "needs a TeX distribution"
+
+
+def _missing_latex_packages() -> list[str] | None:
+    """The names of the template's LaTeX packages `kpsewhich` can't find, in
+    table order, from a single call; `None` when there is no `kpsewhich`."""
+    try:
+        result = subprocess.run(
+            ["kpsewhich", *(probe for _, probe in LATEX_PACKAGES)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return None
+    found = {line.strip().rsplit("/", 1)[-1] for line in result.stdout.splitlines()}
+    return [name for name, probe in LATEX_PACKAGES if probe not in found]
 
 
 def _has_xecjk() -> bool:
@@ -109,6 +149,31 @@ def run() -> list[Check]:
             message="xelatex not found: install a TeX Live distribution"
             f"{_example('xelatex')}",
             url="https://github.com/TeX-Live/texlive-source",
+        )
+    )
+
+    missing_packages = _missing_latex_packages()
+    if missing_packages is None:
+        packages_message = (
+            "LaTeX packages can't be checked: no TeX distribution found "
+            "(kpsewhich is missing)"
+        )
+        packages_detail = NO_TEX
+        packages_install = ""
+    else:
+        packages_install = latex_install_hint(missing_packages) or ""
+        packages_detail = ", ".join(missing_packages)
+        packages_message = f"LaTeX packages missing: {packages_detail}" + (
+            f" (e.g. `{packages_install}`)" if packages_install else ""
+        )
+    checks.append(
+        Check(
+            "LaTeX packages",
+            required=True,
+            ok=missing_packages == [],
+            message=packages_message,
+            install=packages_install,
+            detail=packages_detail,
         )
     )
 

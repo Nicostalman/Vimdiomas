@@ -22,7 +22,9 @@ from vimdiomas.tui.screens.wizard import (
     PathScreen,
     TreeLocationScreen,
     WizardApp,
+    PANEL_CONTENT_WIDTH,
     _checks_text,
+    _pending_checks_text,
 )
 
 HANZI = "com.apple.inputmethod.SCIM.ITABC"
@@ -54,6 +56,7 @@ class _FakeCheck:
     url: str = ""
     needed_for: tuple = ()
     install: str = ""
+    detail: str = ""
 
 
 def _all_ok_checks():
@@ -140,6 +143,63 @@ def test_checks_text_shows_missing_and_url_not_the_raw_message():
     # The raw install-command message is CLI-only, not shown here — it can
     # run long enough to be cut off at the wizard panel's width.
     assert "install pandoc" not in plain
+
+
+def _latex_check(ok=False, detail="fontspec, caption, xcolor, lmodern, lmodern fonts"):
+    return _FakeCheck(
+        "LaTeX packages", required=True, ok=ok, message="long message", detail="" if ok else detail
+    )
+
+
+def test_checks_text_shows_the_detail_under_a_failing_check():
+    checks = [_FakeCheck("pandoc", required=True, ok=True), _latex_check()]
+
+    lines = _checks_text(checks).plain.split("\n")
+
+    assert lines == [
+        "[required] pandoc         ok",
+        "[required] LaTeX packages missing",
+        "  fontspec, caption, xcolor, lmodern, lmodern fonts",
+    ]
+
+
+def test_checks_text_wraps_a_long_detail_inside_the_panel():
+    detail = ", ".join(["fontspec", "geometry", "longtable", "caption", "array", "xcolor", "lmodern", "lmodern fonts"])
+    text = _checks_text([_latex_check(detail=detail)])
+
+    lines = text.plain.split("\n")
+
+    assert len(lines) > 2
+    assert all(len(line) <= PANEL_CONTENT_WIDTH for line in lines)
+    assert all(line.startswith("  ") for line in lines[1:])
+    assert " ".join(line.strip() for line in lines[1:]) == detail
+    detail_start = text.plain.index("\n") + 1
+    assert all(span.style == "red" for span in text.spans if span.start >= detail_start)
+
+
+def test_checks_text_shows_no_detail_for_an_ok_check():
+    lines = _checks_text([_latex_check(ok=True)]).plain.split("\n")
+
+    assert lines == ["[required] LaTeX packages ok"]
+
+
+def test_pending_checks_text_has_no_detail():
+    text = _pending_checks_text([_latex_check()], 0).plain
+
+    assert "fontspec" not in text
+    assert "\n" not in text
+
+
+async def test_dependencies_blocks_next_on_missing_latex_packages(monkeypatch):
+    def checks():
+        return [_latex_check(), *_all_ok_checks()[2:]]
+
+    app = WizardApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await _advance_past_dependencies(pilot, monkeypatch, checks)
+        assert isinstance(pilot.app.screen, DependenciesScreen)
+        assert pilot.app.screen.query_one("#dependencies-error").display
 
 
 def test_checks_text_colors_ok_green_and_failing_red():

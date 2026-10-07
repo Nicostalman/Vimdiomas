@@ -256,6 +256,11 @@ same way, through one shared helper:
   naming what is missing and the command or message. Nothing is written.
 - Only a language's own dependencies are ever offered for installation.
 
+A check that can say *what* is missing (the LaTeX packages, Sprint 8 M2) does:
+at step 1 its `missing` line is followed by the detail on the line(s) under it,
+red, indented two spaces and wrapped to the panel, so the columns above keep
+their alignment. The refusal words it `<name> missing: <detail>.`
+
 ### The focus look
 
 *Accent = active, dim = rest.*

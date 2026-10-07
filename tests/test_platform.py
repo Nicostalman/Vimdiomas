@@ -22,6 +22,7 @@ LAYER_NAMES = [
     "input_switcher",
     "install_hint",
     "is_keyboard_layout",
+    "latex_install_hint",
     "list_input_sources",
     "open_file",
     "switch_input_source",
@@ -123,6 +124,22 @@ def test_macos_install_hints_are_todays_commands():
     assert macos.install_hint("pdftoppm") == "brew install poppler"
     assert macos.install_hint("xelatex") is None
     assert macos.install_hint("cjk-font") is None
+
+
+def test_macos_latex_install_hint_maps_names_to_tlmgr_packages():
+    assert macos.latex_install_hint(["caption"]) == "sudo tlmgr install caption"
+    assert macos.latex_install_hint(["xcolor", "fontspec"]) == "sudo tlmgr install xcolor fontspec"
+
+
+def test_macos_latex_install_hint_lists_a_shared_package_once():
+    assert macos.latex_install_hint(["longtable", "array"]) == "sudo tlmgr install tools"
+    assert macos.latex_install_hint(["lmodern", "caption", "lmodern fonts"]) == (
+        "sudo tlmgr install lm caption"
+    )
+
+
+def test_macos_latex_install_hint_is_none_for_nothing_missing():
+    assert macos.latex_install_hint([]) is None
 
 
 def test_macos_input_switcher_is_macism(monkeypatch):

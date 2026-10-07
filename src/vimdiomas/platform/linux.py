@@ -57,18 +57,33 @@ DISPLAY_NAMES = {
     "libpinyin": "Pinyin",
 }
 
-# "xelatex" names more than XeTeX itself: the template also loads fontspec,
-# xcolor and caption (Arch's latexrecommended collection) and
-# lmodern's OpenType fonts (its fontsrecommended one), which a bare XeTeX
-# package doesn't pull in on Arch — found building the M7 image.
+# "xelatex" is `texlive-xetex` alone. A bare one can't compile the template on
+# Arch (it also needs fontspec, xcolor, caption and lmodern's OpenType fonts);
+# that is the `LaTeX packages` check's job, with `LATEX_PACKAGES` below
+# (Sprint 8 M2), not this table's.
 INSTALL_HINTS = {
     "pandoc": "sudo pacman -S pandoc-cli",
-    "xelatex": "sudo pacman -S texlive-xetex texlive-latexrecommended texlive-fontsrecommended",
+    "xelatex": "sudo pacman -S texlive-xetex",
     "xecjk": "sudo pacman -S texlive-langchinese",
     "cjk-font": "sudo pacman -S noto-fonts-cjk",
     "input-switcher": "sudo pacman -S fcitx5-im fcitx5-chinese-addons",
     "nvim": "sudo pacman -S neovim",
     "pdftoppm": "sudo pacman -S poppler",
+}
+
+# The LaTeX packages the template loads (Sprint 8 M2), each with the Arch
+# package that provides it. Read from `pacman -F` in an `archlinux:latest`
+# container, 2026-10-07; `texlive-xetex` pulls in `texlive-latex` only. Names
+# are `vimdiomas.doctor`'s, tested against it.
+LATEX_PACKAGES = {
+    "fontspec": "texlive-latexrecommended",
+    "geometry": "texlive-latex",
+    "longtable": "texlive-latex",
+    "caption": "texlive-latexrecommended",
+    "array": "texlive-latex",
+    "xcolor": "texlive-latexrecommended",
+    "lmodern": "texlive-fontsrecommended",
+    "lmodern fonts": "texlive-fontsrecommended",
 }
 
 
@@ -207,6 +222,15 @@ def install_hint(dependency: str) -> str | None:
     """The one-line command that installs `dependency`, or `None` for one the
     table doesn't cover."""
     return INSTALL_HINTS.get(dependency)
+
+
+def latex_install_hint(packages: list[str]) -> str | None:
+    """The one-line command that installs the LaTeX `packages` (names from
+    `LATEX_PACKAGES`), each once, in first-seen order; `None` for none."""
+    if not packages:
+        return None
+    names = dict.fromkeys(LATEX_PACKAGES[package] for package in packages)
+    return f"sudo pacman -S {' '.join(names)}"
 
 
 def input_switcher() -> tuple[str, bool, str]:

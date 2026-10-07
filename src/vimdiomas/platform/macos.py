@@ -28,6 +28,20 @@ INSTALL_HINTS = {
     "pdftoppm": "brew install poppler",
 }
 
+# The LaTeX packages the template loads (Sprint 8 M2), each with the `tlmgr`
+# package that provides it. `longtable` and `array` ship in `tools`; both
+# lmodern rows are `lm`. Names are `vimdiomas.doctor`'s, tested against it.
+LATEX_PACKAGES = {
+    "fontspec": "fontspec",
+    "geometry": "geometry",
+    "longtable": "tools",
+    "caption": "caption",
+    "array": "tools",
+    "xcolor": "xcolor",
+    "lmodern": "lm",
+    "lmodern fonts": "lm",
+}
+
 INPUT_SOURCES_SETTINGS = "System Settings › Keyboard › Input Sources"
 """Where the user enables input sources, for the wizard's advisory lines."""
 
@@ -179,6 +193,15 @@ def install_hint(dependency: str) -> str | None:
     isn't one — xelatex (a whole TeX distribution) and the font (it ships
     with the OS)."""
     return INSTALL_HINTS.get(dependency)
+
+
+def latex_install_hint(packages: list[str]) -> str | None:
+    """The one-line command that installs the LaTeX `packages` (names from
+    `LATEX_PACKAGES`), each once, in first-seen order; `None` for none."""
+    if not packages:
+        return None
+    names = dict.fromkeys(LATEX_PACKAGES[package] for package in packages)
+    return f"sudo tlmgr install {' '.join(names)}"
 
 
 def input_switcher() -> tuple[str, bool, str]:

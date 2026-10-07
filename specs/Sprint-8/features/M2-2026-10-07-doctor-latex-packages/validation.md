@@ -5,29 +5,29 @@ The acceptance bar. Section numbers (§) refer to
 
 ## 1. Automated
 
-- [ ] `uv run pytest` passes in full.
-- [ ] Doctor tests cover: a complete TeX (`ok`, empty `detail`, empty
+- [x] `uv run pytest` passes in full.
+- [x] Doctor tests cover: a complete TeX (`ok`, empty `detail`, empty
       `install`); one missing package; several missing in table order; two
       missing packages that share an Arch target (one package in the command);
       no `kpsewhich` (`needs a TeX distribution`, empty `install`); the macOS
       and Arch command shapes.
-- [ ] `missing_for(checks, ["German"])` and `missing_for(checks, [])` include
+- [x] `missing_for(checks, ["German"])` and `missing_for(checks, [])` include
       `LaTeX packages` when it fails.
-- [ ] The consistency test passes: every unconditional `\usepackage` in
+- [x] The consistency test passes: every unconditional `\usepackage` in
       `xecjk.tex` has a row, and the doctor table, the macOS table and the Arch
       table list the same names.
-- [ ] Wizard tests: a failing check with a detail shows `missing` and the
+- [x] Wizard tests: a failing check with a detail shows `missing` and the
       detail beneath, wrapped inside the panel; *Next* is blocked by it; an ok
       check has no detail line.
-- [ ] `git grep -n -E "tlmgr|pacman|brew" -- src/vimdiomas/doctor.py` prints
+- [x] `git grep -n -E "tlmgr|pacman|brew" -- src/vimdiomas/doctor.py` prints
       nothing, and `tests/test_no_platform_leaks.py` passes.
 
 ## 2. What the greps should find
 
-- [ ] `git grep -n "texlive-latexrecommended" -- src` appears only in
+- [x] `git grep -n "texlive-latexrecommended" -- src` appears only in
       `platform/linux.py`'s `LATEX_PACKAGES` table (and comments), no longer in
       `INSTALL_HINTS["xelatex"]`.
-- [ ] `git grep -n "latex_install_hint" -- src` shows the two definitions, the
+- [x] `git grep -n "latex_install_hint" -- src` shows the two definitions, the
       `platform/__init__.py` exports and `doctor.py`'s use.
 
 ## 3. Bare Arch: the check fails, names the packages, and its command fixes it
@@ -35,27 +35,30 @@ The acceptance bar. Section numbers (§) refer to
 Run from the repo root, with Docker (OrbStack). A throwaway container, not a
 file: `texlive-xetex` alone, plus the other required tools.
 
-- [ ] **The check fails and names the packages**:
+- [x] **The check fails and names the packages**:
 
       docker run --rm --platform linux/amd64 -v "$PWD":/src:ro archlinux:latest bash -c '
         sed -i "/^\[options\]/a DisableSandbox" /etc/pacman.conf
         pacman -Syu --noconfirm --needed python git pandoc-cli texlive-xetex >/dev/null
-        python -m venv /tmp/v && /tmp/v/bin/pip install -q /src
+        cp -r /src /tmp/srccopy && python -m venv /tmp/v && /tmp/v/bin/pip install -q /tmp/srccopy
         /tmp/v/bin/vimdiomas doctor; echo "exit $?"'
+
+      The source is copied first because setuptools can't write its build
+      files into the read-only mount.
 
       Passing: `[required] pandoc: ok`, `[required] xelatex: ok`, then
       `[required] LaTeX packages: LaTeX packages missing: fontspec, caption,
       xcolor, lmodern, lmodern fonts (e.g. `sudo pacman -S
       texlive-latexrecommended texlive-fontsrecommended`)` and `exit 1`.
       `geometry`, `longtable` and `array` are not named.
-- [ ] **Its command makes it pass.** In the same container, run exactly the
+- [x] **Its command makes it pass.** In the same container, run exactly the
       command printed, then `vimdiomas doctor` again: `LaTeX packages: ok` and
       the required checks all `ok`.
-- [ ] **A partial TeX names only what is missing**: with `texlive-xetex` and
+- [x] **A partial TeX names only what is missing**: with `texlive-xetex` and
       `texlive-latexrecommended` installed but not `texlive-fontsrecommended`,
       the line names `lmodern, lmodern fonts` and the command is
       `sudo pacman -S texlive-fontsrecommended`.
-- [ ] **It confirms the list by compiling** (§6). With the bare container:
+- [x] **It confirms the list by compiling** (§6). With the bare container:
       a compile of `tests/fixtures/german/Essen.md` fails; after the printed
       command it succeeds (`compile_file` from `vimdiomas.compile` with
       `ALPHABETICAL`, from a `python -c` against `/src/tests/fixtures`, output
@@ -63,11 +66,13 @@ file: `texlive-xetex` alone, plus the other required tools.
       noto-fonts-cjk fontconfig`, `tests/fixtures/Food.md` compiles with
       `CHARACTER_PHONETIC`. If a compile asks for a file the table does not
       cover, the spec and the table are corrected before merging.
-- [ ] **No TeX**: in a container without `texlive-xetex`, `vimdiomas doctor`
+- [x] **No TeX**: in a container without `texlive-xetex`, `vimdiomas doctor`
       shows `xelatex` failing and `LaTeX packages` failing with `needs a TeX
       distribution` (message: `LaTeX packages can't be checked …`), no command.
-- [ ] **The existing verification image stays green**: the `docker/Dockerfile`
-      image prints `ok` for every line of `vimdiomas doctor`.
+- [x] **The existing verification image stays green**: the `docker/Dockerfile`
+      image prints `ok` for every required and Chinese line of `vimdiomas
+      doctor` (`LaTeX packages` among them); its optional `fcitx5 or ibus` and
+      `nvim` were never installed there.
 
 ## 4. Hand-checks on the dev's Mac
 
