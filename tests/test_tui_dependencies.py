@@ -199,7 +199,7 @@ async def test_accepting_runs_exactly_the_listed_commands_without_a_shell(monkey
     assert results == [None]
     assert runs["commands"] == [
         ["sudo", "tlmgr", "install", "xecjk"],
-        ["sudo", "apt", "install", "fonts-noto-cjk"],
+        ["sudo", "pacman", "-S", "noto-fonts-cjk"],
     ]
     assert runs["suspends"] == 1
     assert runs["inputs"] == 1
