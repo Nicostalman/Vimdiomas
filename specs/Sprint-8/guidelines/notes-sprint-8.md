@@ -59,6 +59,28 @@ The "what exactly *refuses* covers" question above is closed.
 | **The inert fallback platform stubs, `distro_family()`, the Debian/Fedora tables and `LinkState.UNSUPPORTED` are removed** | Dead code once the gate exists. `user_bin_dir()` can no longer be `None`. |
 | **One README line was edited** ("macOS and Linux" → "macOS and Arch Linux") | The agent's proposal, kept. The dangling *Dependencies* link stays in Postponed. |
 
+### Settled in M2 (merged 2026-10-07, `288f292`)
+
+| Decision | Rationale |
+| --- | --- |
+| **One required check, `LaTeX packages`, for the whole set**, placed after `xelatex` | Dev's choice, over one check per package or per TeX group. One line of the wizard, and the failing line can name what is missing. |
+| **No `kpsewhich` fails the check without naming packages** (`needs a TeX distribution`, no command) | `xelatex` already says the real problem; M3 rechecks after installing a TeX. |
+| **The install command is built from the missing packages only**, each mapped to its platform package, deduplicated (`latex_install_hint` in each platform module) | Dev's choice, over always installing both Arch collections. |
+| **`Check.detail` carries what is missing**; the wizard prints it red under the `missing` line, wrapped to the panel's 56 content columns; `refusal()` words it `<name> missing: <detail>.` | The status column cannot hold seven names on a 60-wide panel. `design.md` states the rule. |
+| **Arch's `xelatex` hint narrows to `texlive-xetex`** | The rest is the `LaTeX packages` check's job; listing it twice would let them drift. |
+| **`lmodern` is two rows** (`lmodern.sty` and `lmroman12-regular.otf`) | The style file and the OpenType fonts are separate files. |
+| **The package list was confirmed by compiling** on a bare `archlinux:latest` with `texlive-xetex` alone: German and Chinese fixtures compile after exactly the printed command | The list is a claim about what compiling needs. |
+
+**Correction to the BasicTeX note above:** a bare Arch `texlive-xetex` lacks
+`fontspec` too, not only `caption`, `xcolor` and `lmodern`'s fonts. It does
+provide `geometry`, `longtable` and `array` (through `texlive-latex`).
+
+**For M3:** the macOS command shown is the bare `sudo tlmgr install …`;
+`tlmgr update --self` before it is M3's, for this command and the xeCJK one
+together. `tlmgr`, `pacman` and `brew` stay inside the platform layer
+(`tests/test_no_platform_leaks.py`). The hints on step 1 are still shown; M3
+removes them all together.
+
 ## Assumptions
 
 Taken as given by this sprint; not verified in code or stated in the roadmap.
