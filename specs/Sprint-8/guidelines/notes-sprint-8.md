@@ -47,6 +47,18 @@ Settled with the dev during this sprint-start conversation, on 2026-10-06.
 | **Three milestones, in dependency order: platform gate, package check, install** | The install (M3) needs to know which platforms it is on (M1) and needs a complete list of what can be missing (M2). See the roadmap's preamble. |
 | **The README is not part of this sprint** | Offered as a carry-over (the dangling *Dependencies* link left by `becefef`, and saying the wizard now installs everything); the dev did not choose it. |
 
+### Settled in M1 (merged 2026-10-07, `0374fa2`)
+
+The "what exactly *refuses* covers" question above is closed.
+
+| Decision | Rationale |
+| --- | --- |
+| **The refusal covers the whole app** (TUI, `compile`, `doctor`, hidden `wizard`): one line on stderr, exit 1, before anything is written | A config copied from another machine gets the same answer as a fresh install; no unsupported code path survives. |
+| **Arch derivatives count as Arch** (`ID` is `arch`, or `ID_LIKE` lists `arch`) | They share pacman and the package names. Only `archlinux:latest` is tested; derivatives are best-effort. |
+| **A stdlib-only gate, `supported_os.py`, runs first in a thin `__main__.py`**; the old body lives in `cli.py` | The gate has to run where `vimdiomas.platform` cannot be imported. The console script is unchanged, so existing links keep working. `supported_os.current()` returns `"macos"`, `"arch"` or `None`; M3 chooses its commands from it. |
+| **The inert fallback platform stubs, `distro_family()`, the Debian/Fedora tables and `LinkState.UNSUPPORTED` are removed** | Dead code once the gate exists. `user_bin_dir()` can no longer be `None`. |
+| **One README line was edited** ("macOS and Linux" → "macOS and Arch Linux") | The agent's proposal, kept. The dangling *Dependencies* link stays in Postponed. |
+
 ## Assumptions
 
 Taken as given by this sprint; not verified in code or stated in the roadmap.
