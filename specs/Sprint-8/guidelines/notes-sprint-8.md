@@ -81,6 +81,30 @@ together. `tlmgr`, `pacman` and `brew` stay inside the platform layer
 (`tests/test_no_platform_leaks.py`). The hints on step 1 are still shown; M3
 removes them all together.
 
+### Settled in M3 (merged 2026-10-07, `f89754f`)
+
+The open questions in the roadmap's M3 are closed. Full detail in
+[`../features/M3-2026-10-07-install-missing/requirements.md`](../features/M3-2026-10-07-install-missing/requirements.md).
+
+| Decision | Rationale |
+| --- | --- |
+| **Install missing asks for confirmation first** (`ConfirmDialog`, `y`/`n`) | Dev's choice; same as step 3's offer, and it runs `sudo`. |
+| **Commands run in sequence and a failure doesn't stop the rest**; the recheck decides. `tlmgr` steps are skipped when no `tlmgr` exists | Same rule as step 3 had ("the recheck decides, not the exit code"). |
+| **A missing `brew` / `pacman` is a one-line failure and nothing runs** | Dev's choice, over letting the command fail in the terminal. |
+| **After a partial success the button stays**, retrying only what is left, and hides when nothing is | Dev's choice. |
+| **No install command or hint anywhere in the app**: step 1, step 3, Settings › Add a language, `vimdiomas doctor` (`missing` / `missing: <detail>`), Inspect Tree's nvim and poppler lines | Dev's choice per surface. One rule in `design.md`: say what is missing, never how to get it. `Check.install`, `Check.message` and `Check.url` are removed; `Check` gains `key`. |
+| **On macOS the app extends its own `PATH` at startup and after each install** (`/opt/homebrew/bin`, `/usr/local/bin`, `/Library/TeX/texbin`, each only if present) | Dev's choice, over doing it only around an install. In-process only; no shell file is touched. |
+| **One code path, `installer.py`**, for step 1, step 3 and Settings; `sudo` runs `tlmgr` by absolute path; pacman runs with `--needed --noconfirm` | The xeCJK fix (`tlmgr update --self` first) falls out of sharing it. |
+| **The bare Arch image is `--build-arg BARE=1`** on the existing Dockerfile; `learner` has password `learner` and is in `wheel` | Dev's choice. The password makes the run ask through the suspended TUI, as on a real machine. |
+| **The macOS done-when is checked in a throwaway Tart VM** | A spare account on the dev's Mac cannot run `brew install`: Homebrew's prefix belongs to the dev's user. |
+
+**Merged with part of its validation not run.** At the dev's request, M3 was
+merged with these items in its `validation.md` still unchecked: the by-hand TUI
+flow in the bare Arch container (§3), the whole macOS VM pass (§4), the
+regression pass on the dev's own Mac (§5) and the §6 spec check. The automated
+suite (1554 passed) and the headless Arch runs (§3) were done. Treat the macOS
+install path as untested on a real bare Mac until §4 is run.
+
 ### M4 added after the 2026-10-07 bug review
 
 The sprint originally had three milestones. The dev added M4 for the two
@@ -97,11 +121,11 @@ Taken as given by this sprint; not verified in code or stated in the roadmap.
 | Assumption | Origin | Notes |
 | --- | --- | --- |
 | **BasicTeX plus `tlmgr` packages can compile the template** | The agent's proposal, accepted by the dev | **Verified 2026-10-06**, at the dev's request. The method: CTAN's `BasicTeX.pkg` (TeX Live 2026, Apple-notarized) unpacked with `pkgutil --expand-full` into the scratchpad, not installed, and put alone on `PATH` with Homebrew's pandoc. The app's own `compile_file` ran on `tests/fixtures`. Results: **(1)** Of the template's packages (fontspec, xeCJK, lmodern, geometry, longtable, caption, array, xcolor, plus lmodern's `.otf` fonts), **only xeCJK is missing** from stock BasicTeX. German notebooks compile on it as shipped; Chinese ones fail. **(2)** A fresh BasicTeX's `tlmgr install` **refuses to run until `tlmgr update --self`** has run, because its tlmgr is older than the repository's. **(3)** After `tlmgr update --self` and `tlmgr install xecjk`, the three Chinese fixtures (Food, Grammar, Clasificadores) and both German ones compile, with the same embedded fonts and page counts as the MacTeX build. So M2's package check finds only xeCJK missing on macOS, and M3's macOS TeX sequence is `brew install --cask basictex`, then `tlmgr update --self`, then `tlmgr install` for what is missing. Not verified: the real `.pkg` install under `/usr/local/texlive`, which needs `sudo` there, as opposed to the unpacked copy. |
-| **A freshly installed TeX is not on the wizard's `PATH`** | How BasicTeX and pacman's TeX install: BasicTeX puts its binaries in `/Library/TeX/texbin`, added to `PATH` through `/etc/paths.d`, which only a new shell reads | M3's recheck must look in the known install location too, or the wizard would still report `xelatex` missing straight after installing it. The same goes for `tlmgr`, which runs straight after the cask in the same *Install missing* run. |
-| **Step 3's existing xeCJK offer works on any TeX the app installs** | Sprint 6 M7 was verified on the dev's MacTeX only | **False on a fresh BasicTeX**, found in the BasicTeX check: `sudo tlmgr install xecjk` alone is refused until `tlmgr update --self` has run. Fixed in M3 (roadmap, M3 Deliverable). |
+| **A freshly installed TeX is not on the wizard's `PATH`** | How BasicTeX and pacman's TeX install: BasicTeX puts its binaries in `/Library/TeX/texbin`, added to `PATH` through `/etc/paths.d`, which only a new shell reads | M3's recheck must look in the known install location too, or the wizard would still report `xelatex` missing straight after installing it. The same goes for `tlmgr`, which runs straight after the cask in the same *Install missing* run. **Settled in M3:** `platform.extend_path()`, at startup and after each install. Verified in tests; not yet on a real bare Mac. |
+| **Step 3's existing xeCJK offer works on any TeX the app installs** | Sprint 6 M7 was verified on the dev's MacTeX only | **False on a fresh BasicTeX**, found in the BasicTeX check: `sudo tlmgr install xecjk` alone is refused until `tlmgr update --self` has run. Fixed in M3 (roadmap, M3 Deliverable): `installer.py` runs `update --self` then `install`. |
 | **`brew install --cask basictex` and `sudo pacman -S` both ask for a password in the terminal** | The cask runs a `.pkg` installer; pacman needs root | The suspend-the-TUI approach from Sprint 6 M7 (`dependencies.py`) already handles that. |
-| **The Arch verification image has to become a bare one to test M3** | `docker/Dockerfile` installs every dependency up front (Sprint 5 M7) | M3's spec settles whether that's a second Dockerfile, a build argument, or a change to the existing one. |
-| **The dev hand-tests on macOS, as always** | Every sprint so far | Their Mac already has every dependency, so hand-testing *Install missing* on macOS needs a way to make a dependency look missing. M3's spec settles how. |
+| **The Arch verification image has to become a bare one to test M3** | `docker/Dockerfile` installs every dependency up front (Sprint 5 M7) | **Settled in M3:** a build argument, `BARE=1`, on the existing Dockerfile. |
+| **The dev hand-tests on macOS, as always** | Every sprint so far | Their Mac already has every dependency, so hand-testing *Install missing* on macOS needs a way to make a dependency look missing. **Settled in M3:** a throwaway Tart VM with only Homebrew, Python and git; the dev's own Mac gets a regression check only. |
 
 ## Postponed features / pending
 
