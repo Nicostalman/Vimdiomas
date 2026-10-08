@@ -28,3 +28,16 @@ def _no_legacy_migration():
     main_module.migrate_legacy_paths = lambda: None
     yield
     main_module.migrate_legacy_paths = original
+
+
+@pytest.fixture(autouse=True)
+def _no_path_extension():
+    """`main()` extends the process's `PATH` with the package manager's
+    directories (Sprint 8 M3); a test that calls it must not change the real
+    environment for the tests after it."""
+    from vimdiomas import cli as main_module
+
+    original = main_module.extend_path
+    main_module.extend_path = lambda: None
+    yield
+    main_module.extend_path = original

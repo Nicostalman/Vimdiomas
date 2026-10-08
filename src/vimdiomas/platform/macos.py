@@ -1,12 +1,13 @@
 """macOS implementations of the platform layer: opening files, switching
 input sources, listing the enabled ones, checking the CJK font is installed,
-and naming the install command for each dependency — the OS-specific calls
-`vimdiomas.platform` dispatches to on Darwin."""
+and installing the dependencies that are missing (Sprint 8 M3) — the
+OS-specific calls `vimdiomas.platform` dispatches to on Darwin."""
 
 import os
 import plistlib
 import shutil
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
 from vimdiomas.platform.sources import InputSource
@@ -20,13 +21,33 @@ CJK_FONT_URL = ""
 DEFAULT_SHELL_CONFIG = ".zshrc"
 """zsh is macOS's default login shell (Sprint 5 M7's D6)."""
 
-INSTALL_HINTS = {
-    "pandoc": "brew install pandoc",
-    "xecjk": "sudo tlmgr install xecjk",
-    "input-switcher": "brew install laishulu/homebrew/macism",
-    "nvim": "brew install neovim",
-    "pdftoppm": "brew install poppler",
+PACKAGE_MANAGER = "Homebrew"
+"""Named in the line shown when it isn't installed. Taken for granted
+otherwise (Sprint 8 backlog)."""
+
+# The Homebrew formula for each dependency `doctor` can report (Sprint 8 M3),
+# by the key `doctor.Check.key` carries. xelatex is not here: it is the
+# BasicTeX cask, installed only when there is no TeX at all. The CJK font isn't
+# either: it ships with the OS.
+BREW_FORMULAS = {
+    "pandoc": "pandoc",
+    "input-switcher": "laishulu/homebrew/macism",
+    "nvim": "neovim",
+    "pdftoppm": "poppler",
 }
+
+BASICTEX_CASK = "basictex"
+"""A fresh BasicTeX has every LaTeX package the template loads except xeCJK
+(Sprint 8 notes, Assumptions)."""
+
+XECJK_TLMGR_PACKAGE = "xecjk"
+
+# Where a tool installed by the package manager lands, for the app's own
+# `PATH`: Homebrew's prefix on Apple Silicon and on Intel, and the TeX
+# distributions' links. A shell only has `/Library/TeX/texbin` through
+# `/etc/paths.d/TeX`, read when it starts, so a TeX installed mid-session isn't
+# on the app's `PATH` without this.
+EXTRA_PATH_DIRS = ("/opt/homebrew/bin", "/usr/local/bin", "/Library/TeX/texbin")
 
 # The LaTeX packages the template loads (Sprint 8 M2), each with the `tlmgr`
 # package that provides it. `longtable` and `array` ship in `tools`; both
@@ -188,20 +209,61 @@ def cjk_font_installed() -> bool:
     return os.path.exists(CJK_FONT_PATH)
 
 
-def install_hint(dependency: str) -> str | None:
-    """The one-line command that installs `dependency`, or `None` when there
-    isn't one — xelatex (a whole TeX distribution) and the font (it ships
-    with the OS)."""
-    return INSTALL_HINTS.get(dependency)
+def package_manager_available() -> bool:
+    return shutil.which("brew") is not None
 
 
-def latex_install_hint(packages: list[str]) -> str | None:
-    """The one-line command that installs the LaTeX `packages` (names from
-    `LATEX_PACKAGES`), each once, in first-seen order; `None` for none."""
-    if not packages:
-        return None
-    names = dict.fromkeys(LATEX_PACKAGES[package] for package in packages)
-    return f"sudo tlmgr install {' '.join(names)}"
+def installable(key: str) -> bool:
+    """Whether `install` can do anything for the dependency `key`."""
+    return key in BREW_FORMULAS or key in ("xelatex", "latex-packages", "xecjk")
+
+
+def extend_path() -> None:
+    """Append each of `EXTRA_PATH_DIRS` that exists and isn't already an entry
+    to this process's `PATH`. In-process only: no shell file is touched."""
+    current = os.environ.get("PATH", "")
+    entries = current.split(os.pathsep) if current else []
+    for directory in EXTRA_PATH_DIRS:
+        if directory not in entries and os.path.isdir(directory):
+            entries.append(directory)
+    os.environ["PATH"] = os.pathsep.join(entries)
+
+
+def install(
+    keys: list[str],
+    run: Callable[[list[str]], bool],
+    missing_latex: Callable[[], list[str] | None],
+) -> None:
+    """Run, through `run`, the commands that install the dependencies `keys`
+    (the keys `doctor.Check.key` carries; any this can't install is ignored).
+    A command failing doesn't stop the next: the caller's recheck decides what
+    is still missing.
+
+    `brew install` takes every formula at once. Then, with no TeX at all, the
+    BasicTeX cask. Then `tlmgr` for what the TeX lacks (`missing_latex()`,
+    called after the cask so it sees the new TeX) and for xeCJK. `tlmgr` needs
+    `update --self` first (a fresh BasicTeX refuses to install anything until
+    then) and `sudo` (the `.pkg` installs a root-owned tree), and runs by its
+    absolute path because `sudo` may reset `PATH`. With no `tlmgr` the pair is
+    skipped: it could only fail."""
+    formulas = list(dict.fromkeys(BREW_FORMULAS[key] for key in keys if key in BREW_FORMULAS))
+    if formulas:
+        run(["brew", "install", *formulas])
+
+    if "xelatex" in keys:
+        run(["brew", "install", "--cask", BASICTEX_CASK])
+        extend_path()
+
+    packages: dict[str, None] = {}
+    if "xelatex" in keys or "latex-packages" in keys:
+        for name in missing_latex() or []:
+            packages[LATEX_PACKAGES[name]] = None
+    if "xecjk" in keys:
+        packages[XECJK_TLMGR_PACKAGE] = None
+    tlmgr = shutil.which("tlmgr")
+    if packages and tlmgr:
+        run(["sudo", tlmgr, "update", "--self"])
+        run(["sudo", tlmgr, "install", *packages])
 
 
 def input_switcher() -> tuple[str, bool, str]:

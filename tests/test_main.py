@@ -419,3 +419,75 @@ def test_compile_cli_still_exits_one_when_a_file_fails(tmp_path, monkeypatch, ca
     _, err = capsys.readouterr()
     assert "file(s) failed" in err
     assert "warning(s)" in err
+
+
+# -- Sprint 8 M3: PATH, and doctor says what is missing, never how ------------
+
+
+def test_main_extends_the_path_before_it_dispatches(tmp_path, monkeypatch):
+    _point_config_at(monkeypatch, tmp_path / "config.toml")
+    order = []
+    monkeypatch.setattr(main_module, "extend_path", lambda: order.append("extend_path"))
+    monkeypatch.setattr(main_module, "_doctor", lambda: order.append("doctor"))
+    monkeypatch.setattr("sys.argv", ["vimdiomas", "doctor"])
+
+    main_module.main()
+
+    assert order == ["extend_path", "doctor"]
+
+
+def test_main_extends_the_path_for_the_wizard_too(tmp_path, monkeypatch):
+    _point_config_at(monkeypatch, tmp_path / "config.toml")
+    order = []
+    monkeypatch.setattr(main_module, "extend_path", lambda: order.append("extend_path"))
+    monkeypatch.setattr(main_module, "_run_wizard", lambda: order.append("wizard"))
+    monkeypatch.setattr("sys.argv", ["vimdiomas", "wizard"])
+
+    main_module.main()
+
+    assert order == ["extend_path", "wizard"]
+
+
+def test_doctor_cli_prints_ok_missing_and_missing_with_a_detail(tmp_path, monkeypatch, capsys):
+    from vimdiomas import doctor
+
+    _point_config_at(monkeypatch, tmp_path / "config.toml")
+    monkeypatch.setattr(
+        doctor,
+        "run",
+        lambda: [
+            doctor.Check("pandoc", "pandoc", required=True, ok=True),
+            doctor.Check("xelatex", "xelatex", required=True, ok=False),
+            doctor.Check(
+                "LaTeX packages", "latex-packages", required=True, ok=False, detail="caption, xcolor"
+            ),
+            doctor.Check("nvim", "nvim", required=False, ok=False),
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exit_info:
+        main_module._doctor()
+
+    assert exit_info.value.code == 1
+    assert capsys.readouterr().out.splitlines() == [
+        "[required] pandoc: ok",
+        "[required] xelatex: missing",
+        "[required] LaTeX packages: missing: caption, xcolor",
+        "[optional] nvim: missing",
+    ]
+
+
+def test_doctor_cli_exit_status_ignores_a_missing_optional_check(tmp_path, monkeypatch):
+    from vimdiomas import doctor
+
+    _point_config_at(monkeypatch, tmp_path / "config.toml")
+    monkeypatch.setattr(
+        doctor,
+        "run",
+        lambda: [
+            doctor.Check("pandoc", "pandoc", required=True, ok=True),
+            doctor.Check("nvim", "nvim", required=False, ok=False),
+        ],
+    )
+
+    main_module._doctor()  # no SystemExit

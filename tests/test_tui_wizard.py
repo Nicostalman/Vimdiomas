@@ -52,10 +52,8 @@ class _FakeCheck:
     name: str
     required: bool
     ok: bool
-    message: str = ""
-    url: str = ""
+    key: str = ""
     needed_for: tuple = ()
-    install: str = ""
     detail: str = ""
 
 
@@ -65,26 +63,14 @@ def _all_ok_checks():
         _FakeCheck("xelatex", required=True, ok=True),
         _FakeCheck("xeCJK", required=False, ok=True, needed_for=("Chinese",)),
         _FakeCheck(CJK_FONT_NAME, required=False, ok=True, needed_for=("Chinese",)),
-        _FakeCheck(
-            "macism",
-            required=False,
-            ok=False,
-            message="macism missing",
-            url="https://github.com/laishulu/macism",
-        ),
+        _FakeCheck("macism", required=False, ok=False),
         _FakeCheck("nvim", required=False, ok=True),
     ]
 
 
 def _blocked_checks():
     checks = _all_ok_checks()
-    checks[0] = _FakeCheck(
-        "pandoc",
-        required=True,
-        ok=False,
-        message="install pandoc",
-        url="https://github.com/jgm/pandoc",
-    )
+    checks[0] = _FakeCheck("pandoc", required=True, ok=False)
     return checks
 
 
@@ -133,21 +119,17 @@ async def _advance_past_dependencies(pilot, monkeypatch, checks_fn=_all_ok_check
     await pilot.pause()
 
 
-def test_checks_text_shows_missing_and_url_not_the_raw_message():
-    checks = _blocked_checks()  # pandoc missing, has a url
-    text = _checks_text(checks)
-    plain = text.plain
+def test_checks_text_shows_missing_and_nothing_else():
+    # Sprint 8 M3: no link, no command, no hint on how to get it.
+    lines = _checks_text(_blocked_checks()).plain.split("\n")
 
-    assert "missing" in plain
-    assert "https://github.com/jgm/pandoc" in plain
-    # The raw install-command message is CLI-only, not shown here — it can
-    # run long enough to be cut off at the wizard panel's width.
-    assert "install pandoc" not in plain
+    assert lines[0] == "[required] pandoc     missing"
+    assert not any(word in "\n".join(lines).lower() for word in ("http", "<--", "brew", "install"))
 
 
 def _latex_check(ok=False, detail="fontspec, caption, xcolor, lmodern, lmodern fonts"):
     return _FakeCheck(
-        "LaTeX packages", required=True, ok=ok, message="long message", detail="" if ok else detail
+        "LaTeX packages", required=True, ok=ok, key="latex-packages", detail="" if ok else detail
     )
 
 
@@ -1123,21 +1105,11 @@ async def test_the_tree_is_found_from_a_different_working_directory(
 
 # -- Sprint 6 M7: six languages, and what a language needs -------------------
 
-XECJK_INSTALL = "sudo tlmgr install xecjk"
-
 
 def _cjk_missing_checks():
-    """Everything required is there; Chinese's xeCJK is not, and there is a
-    command for it."""
+    """Everything required is there; Chinese's xeCJK is not."""
     checks = _all_ok_checks()
-    checks[2] = _FakeCheck(
-        "xeCJK",
-        required=False,
-        ok=False,
-        message=XECJK_INSTALL,
-        needed_for=("Chinese",),
-        install=XECJK_INSTALL,
-    )
+    checks[2] = _FakeCheck("xeCJK", required=False, ok=False, key="xecjk", needed_for=("Chinese",))
     return checks
 
 
@@ -1161,27 +1133,19 @@ def _sequence(monkeypatch, *states):
 
 @pytest.fixture
 def install_runs(monkeypatch):
-    from contextlib import contextmanager
-    from types import SimpleNamespace
-
+    """Step 3's offer, with no real process: the platform can install every
+    language dependency, its package manager is there, and the install is
+    recorded as the keys it was asked for."""
     from vimdiomas.tui.screens import dependencies
 
-    calls = {"commands": [], "suspends": 0}
-
-    @contextmanager
-    def suspend():
-        calls["suspends"] += 1
-        yield
-
-    # Only the install module's own `subprocess`: `doctor` shells out to
-    # `kpsewhich` through the real one while the wizard's first step mounts.
+    calls = {"installs": []}
     monkeypatch.setattr(
-        dependencies,
-        "subprocess",
-        SimpleNamespace(run=lambda command, **kw: calls["commands"].append(command)),
+        dependencies.installer,
+        "run",
+        lambda app, checks: calls["installs"].append([check.key for check in checks]),
     )
-    monkeypatch.setattr("builtins.input", lambda prompt="": "")
-    calls["suspend"] = suspend
+    monkeypatch.setattr(dependencies.platform, "installable", lambda key: True)
+    monkeypatch.setattr(dependencies.platform, "package_manager_available", lambda: True)
     return calls
 
 
@@ -1237,7 +1201,7 @@ async def test_german_only_proceeds_with_xecjk_missing(monkeypatch, install_runs
         await pilot.click("#next-button")
         await pilot.pause()
         assert isinstance(pilot.app.screen, TreeLocationScreen)
-    assert install_runs["commands"] == []
+    assert install_runs["installs"] == []
 
 
 async def test_chinese_with_xecjk_missing_offers_to_install(monkeypatch, install_runs):
@@ -1249,10 +1213,12 @@ async def test_chinese_with_xecjk_missing_offers_to_install(monkeypatch, install
         await pilot.click("#next-button")
         await pilot.pause()
         assert isinstance(pilot.app.screen, ConfirmDialog)
-        assert XECJK_INSTALL in pilot.app.screen.message
+        message = pilot.app.screen.message
+        assert message.startswith("Chinese needs xeCJK, which is missing. Install it now?")
+        assert "`" not in message and "tlmgr" not in message and "sudo" not in message
 
 
-async def test_declining_the_offer_stays_on_languages_and_names_the_command(
+async def test_declining_the_offer_stays_on_languages_and_names_what_is_missing(
     monkeypatch, install_runs
 ):
     app = WizardApp()
@@ -1270,21 +1236,21 @@ async def test_declining_the_offer_stays_on_languages_and_names_the_command(
         assert error.display
         text = str(error.render())
         assert "Chinese needs xeCJK, which is missing." in text
-        assert XECJK_INSTALL in text
+        assert "tlmgr" not in text and "`" not in text
         assert "untick" in text
-    assert install_runs["commands"] == []
+    assert install_runs["installs"] == []
 
 
-async def test_a_refusal_with_no_command_still_blocks_next(monkeypatch, install_runs):
-    def no_command_checks():
-        checks = _cjk_missing_checks()
-        checks[2].install = ""
-        return checks
+async def test_a_dependency_the_platform_cannot_install_still_blocks_next(
+    monkeypatch, install_runs
+):
+    from vimdiomas.tui.screens import dependencies
 
+    monkeypatch.setattr(dependencies.platform, "installable", lambda key: False)
     app = WizardApp()
     async with app.run_test() as pilot:
         await pilot.pause()
-        await _reach_languages(pilot, monkeypatch, no_command_checks)
+        await _reach_languages(pilot, monkeypatch, _cjk_missing_checks)
         await pilot.click("#language-chinese")
         await pilot.click("#next-button")
         await pilot.pause()
@@ -1299,7 +1265,6 @@ async def test_accepting_the_offer_proceeds_once_the_recheck_is_clean(
     async with app.run_test() as pilot:
         await pilot.pause()
         await _reach_languages(pilot, monkeypatch, _cjk_missing_checks)
-        pilot.app.suspend = install_runs["suspend"]
         # Step 3's own check finds it missing; after the install, it is there.
         _sequence(monkeypatch, _cjk_missing_checks, _all_ok_checks)
         await pilot.click("#language-chinese")
@@ -1310,8 +1275,7 @@ async def test_accepting_the_offer_proceeds_once_the_recheck_is_clean(
 
         assert isinstance(pilot.app.screen, TreeLocationScreen)
         assert pilot.app.languages == ["Chinese"]
-    assert install_runs["commands"] == [["sudo", "tlmgr", "install", "xecjk"]]
-    assert install_runs["suspends"] == 1
+    assert install_runs["installs"] == [["xecjk"]]
 
 
 async def test_accepting_but_still_missing_stays_on_languages(monkeypatch, install_runs):
@@ -1319,7 +1283,6 @@ async def test_accepting_but_still_missing_stays_on_languages(monkeypatch, insta
     async with app.run_test() as pilot:
         await pilot.pause()
         await _reach_languages(pilot, monkeypatch, _cjk_missing_checks)
-        pilot.app.suspend = install_runs["suspend"]
         await pilot.click("#language-chinese")
         await pilot.click("#next-button")
         await pilot.pause()
@@ -1328,7 +1291,7 @@ async def test_accepting_but_still_missing_stays_on_languages(monkeypatch, insta
 
         assert isinstance(pilot.app.screen, LanguagesScreen)
         assert pilot.app.screen.query_one("#languages-error").display
-    assert install_runs["commands"] == [["sudo", "tlmgr", "install", "xecjk"]]
+    assert install_runs["installs"] == [["xecjk"]]
 
 
 async def test_a_full_run_choosing_italian_writes_its_tree_and_config(monkeypatch, tmp_path):
@@ -1346,3 +1309,277 @@ async def test_a_full_run_choosing_italian_writes_its_tree_and_config(monkeypatc
     assert (root / "tree-Italian" / "Vocabulary").is_dir()
     assert (root / "tree-Italian" / "Grammar").is_dir()
     assert [language.name for language in load_config().languages] == ["Italian"]
+
+
+# -- Sprint 8 M3: step 1's Install missing -----------------------------------
+
+
+def _keyed(name, key, ok, required=False, needed_for=()):
+    return _FakeCheck(name, required=required, ok=ok, key=key, needed_for=needed_for)
+
+
+def _step_one_checks(pandoc_ok=False, switcher_ok=False, xecjk_ok=False):
+    """pandoc (required), macism (optional) and xeCJK (Chinese's own)."""
+    return [
+        _keyed("pandoc", "pandoc", pandoc_ok, required=True),
+        _keyed("xelatex", "xelatex", True, required=True),
+        _keyed("xeCJK", "xecjk", xecjk_ok, needed_for=("Chinese",)),
+        _keyed("macism", "input-switcher", switcher_ok),
+    ]
+
+
+@pytest.fixture
+def installing(monkeypatch):
+    """Step 1's install with no real process: the platform can install every
+    key and its package manager is there. `installer.run` is recorded and
+    swaps `doctor.run`'s answer for `calls["after"]`, as an install would."""
+    from vimdiomas.tui.screens import wizard
+
+    calls = {"installs": [], "state": _step_one_checks(), "after": None}
+    monkeypatch.setattr(wizard.doctor, "run", lambda: list(calls["state"]))
+    monkeypatch.setattr(wizard.platform, "installable", lambda key: True)
+    monkeypatch.setattr(wizard.platform, "package_manager_available", lambda: True)
+    monkeypatch.setattr(wizard.platform, "PACKAGE_MANAGER", "Homebrew")
+
+    def fake_run(app, checks):
+        calls["installs"].append([check.name for check in checks])
+        if calls["after"] is not None:
+            calls["state"] = calls["after"]
+
+    monkeypatch.setattr(wizard.installer, "run", fake_run)
+    return calls
+
+
+def _install_button(pilot):
+    return pilot.app.screen.query_one("#install-button")
+
+
+def _error(pilot):
+    return pilot.app.screen.query_one("#dependencies-error")
+
+
+def _error_text(pilot):
+    return str(_error(pilot).render())
+
+
+async def _recheck_settled(pilot):
+    await pilot.app.workers.wait_for_complete()
+    await pilot.pause()
+
+
+async def test_install_missing_is_shown_for_a_missing_required_or_optional_check(installing):
+    async with WizardApp().run_test() as pilot:
+        await pilot.pause()
+        assert _install_button(pilot).display
+        assert str(_install_button(pilot).label) == "Install missing"
+
+
+async def test_install_missing_is_shown_for_an_optional_check_alone(installing):
+    installing["state"] = _step_one_checks(pandoc_ok=True)
+    async with WizardApp().run_test() as pilot:
+        await pilot.pause()
+        assert _install_button(pilot).display
+
+
+async def test_install_missing_is_hidden_when_only_a_language_check_is_missing(installing):
+    installing["state"] = _step_one_checks(pandoc_ok=True, switcher_ok=True)
+    async with WizardApp().run_test() as pilot:
+        await pilot.pause()
+        assert not _install_button(pilot).display
+
+
+async def test_install_missing_is_hidden_when_the_platform_cannot_install_it(
+    installing, monkeypatch
+):
+    from vimdiomas.tui.screens import wizard
+
+    monkeypatch.setattr(wizard.platform, "installable", lambda key: False)
+    async with WizardApp().run_test() as pilot:
+        await pilot.pause()
+        assert not _install_button(pilot).display
+
+
+async def test_install_missing_comes_first_and_has_the_focus(installing):
+    async with WizardApp().run_test() as pilot:
+        await pilot.pause()
+        ids = [button.id for button in pilot.app.screen.query("Button") if button.display]
+        assert ids == ["install-button", "recheck-button", "next-button"]
+        assert pilot.app.focused is _install_button(pilot)
+
+
+async def test_focus_starts_on_recheck_when_nothing_can_be_installed(installing):
+    installing["state"] = _step_one_checks(pandoc_ok=True, switcher_ok=True)
+    async with WizardApp().run_test() as pilot:
+        await pilot.pause()
+        assert pilot.app.focused.id != "install-button"
+
+
+async def test_tab_visits_install_missing_while_shown_and_skips_it_when_hidden(installing):
+    async with WizardApp().run_test() as pilot:
+        await pilot.pause()
+        seen = []
+        for _ in range(3):
+            await pilot.press("tab")
+            await pilot.pause()
+            seen.append(pilot.app.focused.id)
+        assert seen == ["recheck-button", "next-button", "install-button"]
+
+    installing["state"] = _step_one_checks(pandoc_ok=True, switcher_ok=True)
+    async with WizardApp().run_test() as pilot:
+        await pilot.pause()
+        seen = set()
+        for _ in range(4):
+            await pilot.press("tab")
+            await pilot.pause()
+            seen.add(pilot.app.focused.id)
+        assert seen == {"recheck-button", "next-button"}
+
+
+async def test_install_missing_asks_first_naming_what_is_missing_and_no_command(installing):
+    async with WizardApp().run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        dialog = pilot.app.screen
+        assert isinstance(dialog, ConfirmDialog)
+        assert dialog.message == (
+            "pandoc and macism are missing. Install them now? "
+            "Your password may be asked for in the terminal."
+        )
+        assert "`" not in dialog.message
+    assert installing["installs"] == []
+
+
+async def test_a_single_missing_check_is_worded_in_the_singular(installing):
+    installing["state"] = _step_one_checks(switcher_ok=True)
+    async with WizardApp().run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert pilot.app.screen.message == (
+            "pandoc is missing. Install it now? Your password may be asked for in the terminal."
+        )
+
+
+@pytest.mark.parametrize("key", ["n", "escape"])
+async def test_declining_install_missing_does_nothing(installing, key):
+    async with WizardApp().run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.press(key)
+        await pilot.pause()
+        assert isinstance(pilot.app.screen, DependenciesScreen)
+        assert _install_button(pilot).display
+        assert not _error(pilot).display
+    assert installing["installs"] == []
+
+
+async def test_accepting_installs_what_is_missing_then_rechecks_and_hides_the_button(installing):
+    installing["after"] = _step_one_checks(pandoc_ok=True, switcher_ok=True)
+    async with WizardApp().run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.press("y")
+        await _recheck_settled(pilot)
+
+        # The language's own check is not what it installs.
+        assert installing["installs"] == [["pandoc", "macism"]]
+        lines = pilot.app.screen.query_one("#dependencies-list").render().plain.splitlines()
+        assert [line.endswith("ok") for line in lines] == [True, True, False, True]
+        assert not _install_button(pilot).display
+        assert not _error(pilot).display
+        assert pilot.app.focused.id == "next-button"
+
+
+async def test_after_a_partial_install_the_button_stays_and_names_what_is_left(installing):
+    installing["after"] = _step_one_checks(pandoc_ok=True, switcher_ok=False)
+    async with WizardApp().run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.press("y")
+        await _recheck_settled(pilot)
+
+        assert _install_button(pilot).display
+        assert _error(pilot).display
+        assert _error_text(pilot) == "Still missing: macism."
+
+
+async def test_pressing_it_again_installs_only_what_is_left(installing):
+    installing["after"] = _step_one_checks(pandoc_ok=True, switcher_ok=False)
+    async with WizardApp().run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.press("y")
+        await _recheck_settled(pilot)
+
+        installing["after"] = _step_one_checks(pandoc_ok=True, switcher_ok=True)
+        await pilot.click("#install-button")
+        await pilot.pause()
+        await pilot.press("y")
+        await _recheck_settled(pilot)
+
+        assert installing["installs"] == [["pandoc", "macism"], ["macism"]]
+        assert not _install_button(pilot).display
+        assert not _error(pilot).display
+
+
+async def test_a_recheck_after_the_install_clears_the_still_missing_line(installing):
+    installing["after"] = _step_one_checks(pandoc_ok=True, switcher_ok=False)
+    async with WizardApp().run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.press("y")
+        await _recheck_settled(pilot)
+        assert _error(pilot).display
+
+        await pilot.click("#recheck-button")
+        await _recheck_settled(pilot)
+        assert not _error(pilot).display
+
+
+async def test_without_a_package_manager_a_line_says_so_and_nothing_runs(installing, monkeypatch):
+    from vimdiomas.tui.screens import wizard
+
+    monkeypatch.setattr(wizard.platform, "package_manager_available", lambda: False)
+    async with WizardApp().run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert isinstance(pilot.app.screen, DependenciesScreen)
+        assert _error(pilot).display
+        assert _error_text(pilot) == "Homebrew isn't installed, so Vimdiomas can't install anything."
+    assert installing["installs"] == []
+
+
+async def test_next_still_blocks_on_a_missing_required_check_without_a_hint(installing):
+    async with WizardApp().run_test() as pilot:
+        await pilot.pause()
+        await pilot.click("#next-button")
+        await pilot.pause()
+        assert isinstance(pilot.app.screen, DependenciesScreen)
+        assert _error_text(pilot) == "A required dependency is still missing."
+
+
+async def test_nothing_on_step_one_shows_a_command_or_a_link(installing):
+    forbidden = ("brew", "pacman", "tlmgr", "sudo", "`", "http", "<--")
+    async with WizardApp().run_test() as pilot:
+        await pilot.pause()
+        shown = [
+            pilot.app.screen.query_one("#dependencies-list").render().plain,
+            str(pilot.app.screen.query_one("#footer-hint").render()),
+        ]
+        await pilot.press("enter")
+        await pilot.pause()
+        shown.append(pilot.app.screen.message)
+        await pilot.press("n")
+        await pilot.pause()
+        await pilot.click("#next-button")
+        await pilot.pause()
+        shown.append(_error_text(pilot))
+        for text in shown:
+            assert not any(word in text.lower() for word in forbidden), text

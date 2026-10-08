@@ -3,15 +3,16 @@ surface as `macos.py`, dispatched to by `vimdiomas.platform` on Linux.
 
 Input switching targets fcitx5 and ibus, whichever is running (D3). It is
 best-effort: no framework running makes switching and listing silent no-ops,
-the same as macOS without `macism`. The install commands are Arch's (pacman):
-since Sprint 8 M1 Arch is the only Linux supported, and
-`vimdiomas.supported_os` is what refuses every other distro."""
+the same as macOS without `macism`. The installs are Arch's (pacman): since
+Sprint 8 M1 Arch is the only Linux supported, and `vimdiomas.supported_os` is
+what refuses every other distro."""
 
 import ast
 import configparser
 import functools
 import shutil
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
 from vimdiomas.platform.sources import InputSource
@@ -57,18 +58,23 @@ DISPLAY_NAMES = {
     "libpinyin": "Pinyin",
 }
 
-# "xelatex" is `texlive-xetex` alone. A bare one can't compile the template on
-# Arch (it also needs fontspec, xcolor, caption and lmodern's OpenType fonts);
-# that is the `LaTeX packages` check's job, with `LATEX_PACKAGES` below
-# (Sprint 8 M2), not this table's.
-INSTALL_HINTS = {
-    "pandoc": "sudo pacman -S pandoc-cli",
-    "xelatex": "sudo pacman -S texlive-xetex",
-    "xecjk": "sudo pacman -S texlive-langchinese",
-    "cjk-font": "sudo pacman -S noto-fonts-cjk",
-    "input-switcher": "sudo pacman -S fcitx5-im fcitx5-chinese-addons",
-    "nvim": "sudo pacman -S neovim",
-    "pdftoppm": "sudo pacman -S poppler",
+PACKAGE_MANAGER = "pacman"
+"""Named in the line shown when it isn't installed. Taken for granted
+otherwise (Sprint 8 backlog)."""
+
+# The pacman packages for each dependency `doctor` can report (Sprint 8 M3), by
+# the key `doctor.Check.key` carries. "xelatex" is `texlive-xetex` alone. A
+# bare one can't compile the template on Arch (it also needs fontspec, xcolor,
+# caption and lmodern's OpenType fonts); `LATEX_PACKAGES` below (Sprint 8 M2)
+# covers those, and `install` adds them next to it.
+PACMAN_PACKAGES = {
+    "pandoc": "pandoc-cli",
+    "xelatex": "texlive-xetex",
+    "xecjk": "texlive-langchinese",
+    "cjk-font": "noto-fonts-cjk",
+    "input-switcher": "fcitx5-im fcitx5-chinese-addons",
+    "nvim": "neovim",
+    "pdftoppm": "poppler",
 }
 
 # The LaTeX packages the template loads (Sprint 8 M2), each with the Arch
@@ -218,19 +224,45 @@ def user_bin_dir() -> Path:
     return Path.home() / ".local" / "bin"
 
 
-def install_hint(dependency: str) -> str | None:
-    """The one-line command that installs `dependency`, or `None` for one the
-    table doesn't cover."""
-    return INSTALL_HINTS.get(dependency)
+def package_manager_available() -> bool:
+    return shutil.which("pacman") is not None
 
 
-def latex_install_hint(packages: list[str]) -> str | None:
-    """The one-line command that installs the LaTeX `packages` (names from
-    `LATEX_PACKAGES`), each once, in first-seen order; `None` for none."""
-    if not packages:
-        return None
-    names = dict.fromkeys(LATEX_PACKAGES[package] for package in packages)
-    return f"sudo pacman -S {' '.join(names)}"
+def installable(key: str) -> bool:
+    """Whether `install` can do anything for the dependency `key`."""
+    return key in PACMAN_PACKAGES or key == "latex-packages"
+
+
+def extend_path() -> None:
+    """A no-op: pacman installs into `/usr/bin`, already on `PATH`."""
+
+
+def install(
+    keys: list[str],
+    run: Callable[[list[str]], bool],
+    missing_latex: Callable[[], list[str] | None],
+) -> None:
+    """Run, through `run`, the one pacman command that installs the
+    dependencies `keys` (the keys `doctor.Check.key` carries; any this can't
+    install is ignored), each package once, in first-seen order. `--needed`
+    skips whatever is already there; `--noconfirm` because the user already
+    said yes in the app, and pacman would otherwise ask again, and which
+    members of the `fcitx5-im` group to install.
+
+    With a TeX in `keys` (or the LaTeX packages alone), the pacman packages of
+    whatever `missing_latex()` reports come too — every one of the template's
+    packages when it returns `None`, since a bare machine has no `kpsewhich`
+    to ask."""
+    packages: dict[str, None] = {}
+    for key in keys:
+        for package in PACMAN_PACKAGES.get(key, "").split():
+            packages[package] = None
+    if "xelatex" in keys or "latex-packages" in keys:
+        missing = missing_latex()
+        for name in LATEX_PACKAGES if missing is None else missing:
+            packages[LATEX_PACKAGES[name]] = None
+    if packages:
+        run(["sudo", "pacman", "-S", "--needed", "--noconfirm", *packages])
 
 
 def input_switcher() -> tuple[str, bool, str]:

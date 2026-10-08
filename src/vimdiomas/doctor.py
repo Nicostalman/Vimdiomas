@@ -6,9 +6,10 @@ use for them (Sprint 6 M7); the input switcher, nvim and pdftoppm are optional
 (each only degrades one feature: input switching, Inspect Tree's MD mode,
 Inspect Tree's PDF preview).
 
-Which font, which switcher, and the command that installs each dependency
-all come from `vimdiomas.platform` (Sprint 5 M7) — nothing here names an
-OS-specific tool."""
+Which font and which switcher come from `vimdiomas.platform` (Sprint 5 M7) —
+nothing here names an OS-specific tool. A check says what is missing and never
+how to get it (Sprint 8 M3); each carries the `key` the platform installs it
+by."""
 
 import shutil
 import subprocess
@@ -18,30 +19,25 @@ from vimdiomas.languages import LANGUAGES
 from vimdiomas.pdf_preview import pdftoppm_available
 from vimdiomas.platform import (
     CJK_FONT_NAME,
-    CJK_FONT_PATH,
-    CJK_FONT_URL,
     cjk_font_installed,
     input_switcher,
-    install_hint,
-    latex_install_hint,
 )
 
 
 @dataclass
 class Check:
     """One dependency. `required` means every install needs it; `needed_for`
-    names the registry languages that need it when only some do. `install` is
-    the platform's command for it, or `""` when there is none to offer. `detail`
-    says what is missing, when a check can (the LaTeX packages); the wizard
-    shows it under the `missing` line."""
+    names the registry languages that need it when only some do. `key` is the
+    name the platform layer knows it by (`pandoc`, `xelatex`,
+    `latex-packages`, `xecjk`, `cjk-font`, `input-switcher`, `nvim`,
+    `pdftoppm`). `detail` says what is missing, when a check can (the LaTeX
+    packages); the wizard shows it under the `missing` line."""
 
     name: str
+    key: str
     required: bool
     ok: bool
-    message: str = ""
-    url: str = ""
     needed_for: tuple[str, ...] = ()
-    install: str = ""
     detail: str = ""
 
 
@@ -91,7 +87,7 @@ LATEX_PACKAGES = (
 NO_TEX = "needs a TeX distribution"
 
 
-def _missing_latex_packages() -> list[str] | None:
+def missing_latex_packages() -> list[str] | None:
     """The names of the template's LaTeX packages `kpsewhich` can't find, in
     table order, from a single call; `None` when there is no `kpsewhich`."""
     try:
@@ -117,125 +113,45 @@ def _has_xecjk() -> bool:
     return bool(result.stdout.strip())
 
 
-def _example(dependency: str) -> str:
-    """` (e.g. `<command>`)` for the platform's install command, or nothing
-    when it has none to offer."""
-    command = install_hint(dependency)
-    return f" (e.g. `{command}`)" if command else ""
-
-
 def run() -> list[Check]:
     """Return one Check per dependency; required ones block, optional ones warn,
     and the ones with `needed_for` block only the languages named."""
     checks = []
 
-    has_pandoc = shutil.which("pandoc") is not None
     checks.append(
-        Check(
-            "pandoc",
-            required=True,
-            ok=has_pandoc,
-            message=f"pandoc not found: install it{_example('pandoc')}",
-            url="https://github.com/jgm/pandoc",
-        )
+        Check("pandoc", "pandoc", required=True, ok=shutil.which("pandoc") is not None)
+    )
+    checks.append(
+        Check("xelatex", "xelatex", required=True, ok=shutil.which("xelatex") is not None)
     )
 
-    has_xelatex = shutil.which("xelatex") is not None
-    checks.append(
-        Check(
-            "xelatex",
-            required=True,
-            ok=has_xelatex,
-            message="xelatex not found: install a TeX Live distribution"
-            f"{_example('xelatex')}",
-            url="https://github.com/TeX-Live/texlive-source",
-        )
-    )
-
-    missing_packages = _missing_latex_packages()
-    if missing_packages is None:
-        packages_message = (
-            "LaTeX packages can't be checked: no TeX distribution found "
-            "(kpsewhich is missing)"
-        )
-        packages_detail = NO_TEX
-        packages_install = ""
-    else:
-        packages_install = latex_install_hint(missing_packages) or ""
-        packages_detail = ", ".join(missing_packages)
-        packages_message = f"LaTeX packages missing: {packages_detail}" + (
-            f" (e.g. `{packages_install}`)" if packages_install else ""
-        )
+    missing_packages = missing_latex_packages()
     checks.append(
         Check(
             "LaTeX packages",
+            "latex-packages",
             required=True,
             ok=missing_packages == [],
-            message=packages_message,
-            install=packages_install,
-            detail=packages_detail,
+            detail=NO_TEX if missing_packages is None else ", ".join(missing_packages),
         )
     )
 
     checks.append(
-        Check(
-            "xeCJK",
-            required=False,
-            ok=_has_xecjk(),
-            message=install_hint("xecjk") or "xeCJK not found: install the xeCJK LaTeX package",
-            url="https://github.com/texjporg/xecjk",
-            needed_for=CJK_LANGUAGES,
-            install=install_hint("xecjk") or "",
-        )
+        Check("xeCJK", "xecjk", required=False, ok=_has_xecjk(), needed_for=CJK_LANGUAGES)
     )
-
-    where = f" at {CJK_FONT_PATH}" if CJK_FONT_PATH else ""
     checks.append(
         Check(
             CJK_FONT_NAME,
+            "cjk-font",
             required=False,
             ok=cjk_font_installed(),
-            message=f"CJK font not found{where} ({CJK_FONT_NAME}){_example('cjk-font')}",
-            url=CJK_FONT_URL,
             needed_for=CJK_LANGUAGES,
-            install=install_hint("cjk-font") or "",
         )
     )
 
-    switcher, has_switcher, switcher_url = input_switcher()
-    checks.append(
-        Check(
-            switcher,
-            required=False,
-            ok=has_switcher,
-            message=f"{switcher} not found: input-method switching will be a no-op"
-            f"{_example('input-switcher')}",
-            url=switcher_url,
-        )
-    )
-
-    has_nvim = shutil.which("nvim") is not None
-    checks.append(
-        Check(
-            "nvim",
-            required=False,
-            ok=has_nvim,
-            message="nvim not found: Inspect Tree's MD mode won't be able to open files"
-            f"{_example('nvim')}",
-            url="https://github.com/neovim/neovim",
-        )
-    )
-
-    has_pdftoppm = pdftoppm_available()
-    checks.append(
-        Check(
-            "pdftoppm",
-            required=False,
-            ok=has_pdftoppm,
-            message="pdftoppm not found: Inspect Tree's PDF preview will be "
-            f"degraded{_example('pdftoppm')}",
-            url="https://poppler.freedesktop.org/",
-        )
-    )
+    switcher, has_switcher, _ = input_switcher()
+    checks.append(Check(switcher, "input-switcher", required=False, ok=has_switcher))
+    checks.append(Check("nvim", "nvim", required=False, ok=shutil.which("nvim") is not None))
+    checks.append(Check("pdftoppm", "pdftoppm", required=False, ok=pdftoppm_available()))
 
     return checks

@@ -1,3 +1,4 @@
+import os
 import platform
 import plistlib
 import subprocess
@@ -18,13 +19,16 @@ LAYER_NAMES = [
     "CJK_FONT_URL",
     "DEFAULT_SHELL_CONFIG",
     "INPUT_SOURCES_SETTINGS",
+    "PACKAGE_MANAGER",
     "cjk_font_installed",
+    "extend_path",
     "input_switcher",
-    "install_hint",
+    "install",
+    "installable",
     "is_keyboard_layout",
-    "latex_install_hint",
     "list_input_sources",
     "open_file",
+    "package_manager_available",
     "switch_input_source",
     "user_bin_dir",
 ]
@@ -116,30 +120,164 @@ def test_cjk_font_installed_checks_its_own_path(monkeypatch, tmp_path):
     assert macos.cjk_font_installed() is False
 
 
-def test_macos_install_hints_are_todays_commands():
-    assert macos.install_hint("pandoc") == "brew install pandoc"
-    assert macos.install_hint("xecjk") == "sudo tlmgr install xecjk"
-    assert macos.install_hint("input-switcher") == "brew install laishulu/homebrew/macism"
-    assert macos.install_hint("nvim") == "brew install neovim"
-    assert macos.install_hint("pdftoppm") == "brew install poppler"
-    assert macos.install_hint("xelatex") is None
-    assert macos.install_hint("cjk-font") is None
+def _recorder(fail=()):
+    """A `run` that records each command and fails those whose second word
+    (or first, for `brew`) is in `fail`."""
+    calls = []
+
+    def run(argv):
+        calls.append(argv)
+        return not any(word in argv for word in fail)
+
+    return calls, run
 
 
-def test_macos_latex_install_hint_maps_names_to_tlmgr_packages():
-    assert macos.latex_install_hint(["caption"]) == "sudo tlmgr install caption"
-    assert macos.latex_install_hint(["xcolor", "fontspec"]) == "sudo tlmgr install xcolor fontspec"
+def _stub_tlmgr(monkeypatch, path="/Library/TeX/texbin/tlmgr"):
+    monkeypatch.setattr(macos.shutil, "which", lambda name: path if name == "tlmgr" else None)
 
 
-def test_macos_latex_install_hint_lists_a_shared_package_once():
-    assert macos.latex_install_hint(["longtable", "array"]) == "sudo tlmgr install tools"
-    assert macos.latex_install_hint(["lmodern", "caption", "lmodern fonts"]) == (
-        "sudo tlmgr install lm caption"
-    )
+def test_macos_brew_installs_every_formula_in_one_command(monkeypatch):
+    _stub_tlmgr(monkeypatch, None)
+    calls, run = _recorder()
+    macos.install(["pandoc", "input-switcher", "nvim", "pdftoppm"], run, lambda: [])
+    assert calls == [["brew", "install", "pandoc", "laishulu/homebrew/macism", "neovim", "poppler"]]
 
 
-def test_macos_latex_install_hint_is_none_for_nothing_missing():
-    assert macos.latex_install_hint([]) is None
+def test_macos_no_tex_installs_basictex_then_tlmgr_for_what_it_lacks(monkeypatch):
+    _stub_tlmgr(monkeypatch)
+    monkeypatch.setattr(macos, "extend_path", lambda: calls.append("extend_path"))
+    calls, run = _recorder()
+    macos.install(["xelatex", "latex-packages"], run, lambda: ["caption", "longtable", "array"])
+    assert calls == [
+        ["brew", "install", "--cask", "basictex"],
+        "extend_path",
+        ["sudo", "/Library/TeX/texbin/tlmgr", "update", "--self"],
+        ["sudo", "/Library/TeX/texbin/tlmgr", "install", "caption", "tools"],
+    ]
+
+
+def test_macos_stock_basictex_runs_no_tlmgr(monkeypatch):
+    # A stock BasicTeX has every package the check looks for (Sprint 8 notes).
+    _stub_tlmgr(monkeypatch)
+    monkeypatch.setattr(macos, "extend_path", lambda: None)
+    calls, run = _recorder()
+    macos.install(["xelatex", "latex-packages"], run, lambda: [])
+    assert calls == [["brew", "install", "--cask", "basictex"]]
+
+
+def test_macos_a_tex_that_cant_be_asked_runs_no_tlmgr(monkeypatch):
+    _stub_tlmgr(monkeypatch)
+    monkeypatch.setattr(macos, "extend_path", lambda: None)
+    calls, run = _recorder()
+    macos.install(["xelatex", "latex-packages"], run, lambda: None)
+    assert calls == [["brew", "install", "--cask", "basictex"]]
+
+
+def test_macos_latex_packages_alone_skips_the_cask(monkeypatch):
+    _stub_tlmgr(monkeypatch)
+    calls, run = _recorder()
+    macos.install(["latex-packages"], run, lambda: ["xcolor", "fontspec"])
+    assert calls == [
+        ["sudo", "/Library/TeX/texbin/tlmgr", "update", "--self"],
+        ["sudo", "/Library/TeX/texbin/tlmgr", "install", "xcolor", "fontspec"],
+    ]
+
+
+def test_macos_xecjk_updates_tlmgr_itself_first(monkeypatch):
+    _stub_tlmgr(monkeypatch)
+    calls, run = _recorder()
+    macos.install(["xecjk"], run, lambda: pytest.fail("xelatex wasn't installed"))
+    assert calls == [
+        ["sudo", "/Library/TeX/texbin/tlmgr", "update", "--self"],
+        ["sudo", "/Library/TeX/texbin/tlmgr", "install", "xecjk"],
+    ]
+
+
+def test_macos_xecjk_joins_the_missing_latex_packages_in_one_install(monkeypatch):
+    _stub_tlmgr(monkeypatch)
+    monkeypatch.setattr(macos, "extend_path", lambda: None)
+    calls, run = _recorder()
+    macos.install(["xelatex", "latex-packages", "xecjk"], run, lambda: ["caption"])
+    assert calls[-1] == ["sudo", "/Library/TeX/texbin/tlmgr", "install", "caption", "xecjk"]
+
+
+def test_macos_without_tlmgr_both_tlmgr_commands_are_skipped(monkeypatch):
+    _stub_tlmgr(monkeypatch, None)
+    calls, run = _recorder()
+    macos.install(["xecjk"], run, lambda: [])
+    assert calls == []
+
+
+def test_macos_a_failing_command_does_not_stop_the_next(monkeypatch):
+    _stub_tlmgr(monkeypatch)
+    monkeypatch.setattr(macos, "extend_path", lambda: None)
+    calls, run = _recorder(fail=("brew", "--self"))
+    macos.install(["pandoc", "xelatex", "xecjk"], run, lambda: [])
+    assert [c[0:2] for c in calls] == [
+        ["brew", "install"],
+        ["brew", "install"],
+        ["sudo", "/Library/TeX/texbin/tlmgr"],
+        ["sudo", "/Library/TeX/texbin/tlmgr"],
+    ]
+
+
+def test_macos_ignores_keys_it_cannot_install(monkeypatch):
+    _stub_tlmgr(monkeypatch)
+    calls, run = _recorder()
+    macos.install(["cjk-font", "no-such-key"], run, lambda: pytest.fail("not asked"))
+    assert calls == []
+
+
+def test_macos_installable_keys():
+    for key in ("pandoc", "input-switcher", "nvim", "pdftoppm", "xelatex", "latex-packages", "xecjk"):
+        assert macos.installable(key), key
+    assert not macos.installable("cjk-font")
+    assert not macos.installable("no-such-key")
+
+
+def test_macos_package_manager_is_brew(monkeypatch):
+    assert macos.PACKAGE_MANAGER == "Homebrew"
+    monkeypatch.setattr(macos.shutil, "which", lambda name: "/x/brew" if name == "brew" else None)
+    assert macos.package_manager_available() is True
+    monkeypatch.setattr(macos.shutil, "which", lambda name: None)
+    assert macos.package_manager_available() is False
+
+
+def test_macos_extend_path_appends_the_known_dirs_that_exist(monkeypatch, tmp_path):
+    present, absent = tmp_path / "brew", tmp_path / "texbin"
+    present.mkdir()
+    monkeypatch.setattr(macos, "EXTRA_PATH_DIRS", (str(present), str(absent)))
+    monkeypatch.setenv("PATH", "/usr/bin")
+    macos.extend_path()
+    assert os.environ["PATH"] == f"/usr/bin{os.pathsep}{present}"
+
+
+def test_macos_extend_path_never_duplicates(monkeypatch, tmp_path):
+    (tmp_path / "brew").mkdir()
+    monkeypatch.setattr(macos, "EXTRA_PATH_DIRS", (str(tmp_path / "brew"),))
+    monkeypatch.setenv("PATH", "/usr/bin")
+    macos.extend_path()
+    macos.extend_path()
+    assert os.environ["PATH"].split(os.pathsep) == ["/usr/bin", str(tmp_path / "brew")]
+
+
+def test_macos_extend_path_sees_a_dir_that_appears_later(monkeypatch, tmp_path):
+    texbin = tmp_path / "texbin"
+    monkeypatch.setattr(macos, "EXTRA_PATH_DIRS", (str(texbin),))
+    monkeypatch.setenv("PATH", "/usr/bin")
+    macos.extend_path()
+    assert os.environ["PATH"] == "/usr/bin"
+    texbin.mkdir()
+    macos.extend_path()
+    assert os.environ["PATH"] == f"/usr/bin{os.pathsep}{texbin}"
+
+
+def test_macos_extend_path_with_an_empty_path_adds_no_blank_entry(monkeypatch, tmp_path):
+    (tmp_path / "brew").mkdir()
+    monkeypatch.setattr(macos, "EXTRA_PATH_DIRS", (str(tmp_path / "brew"),))
+    monkeypatch.setenv("PATH", "")
+    macos.extend_path()
+    assert os.environ["PATH"] == str(tmp_path / "brew")
 
 
 def test_macos_input_switcher_is_macism(monkeypatch):

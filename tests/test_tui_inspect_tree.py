@@ -1339,7 +1339,7 @@ async def test_md_enter_without_nvim_notifies_and_touches_nothing(source_tree, m
         assert pilot.app.is_running
         assert suspended == [] and ran == [] and compiled == []
         [note] = [n for n in pilot.app._notifications if n.severity == "warning"]
-        assert "nvim" in note.message
+        assert note.message == "nvim isn't installed, so MD mode can't open files."
         # Still usable: the tree has focus and answers to the cursor keys.
         tree = pilot.app.screen.query_one("#inspect-tree", InspectTree)
         assert pilot.app.focused is tree
@@ -1728,3 +1728,14 @@ async def test_a_warned_file_is_not_blocked(source_tree, monkeypatch):
         await pilot.press("enter")
         await pilot.pause()
         assert opened == [source_tree / "Vocabulary" / "Food.pdf"]
+
+
+def test_the_missing_tool_messages_name_no_command():
+    # Sprint 8 M3: what is missing, never how to get it.
+    from vimdiomas.tui.screens import inspect
+
+    assert inspect.MSG_NO_POPPLER == "poppler isn't installed, so there's no PDF preview."
+    assert inspect.MSG_NO_NVIM == "nvim isn't installed, so MD mode can't open files."
+    for message in (inspect.MSG_NO_POPPLER, inspect.MSG_NO_NVIM):
+        assert "`" not in message
+        assert not any(word in message for word in ("brew", "pacman", "sudo"))

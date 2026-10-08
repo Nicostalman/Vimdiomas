@@ -2,6 +2,7 @@
 is imported directly and every call out to the system is monkeypatched, the
 way `macos.py` is tested in `test_platform.py`."""
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -295,47 +296,87 @@ def test_unknown_source_keeps_its_raw_id():
     assert linux.display_name("pinyin") == "Pinyin"
 
 
-# --- install hints ------------------------------------------------------------------
+# --- install ------------------------------------------------------------------------
 
 
 DEPENDENCIES = ["pandoc", "xelatex", "xecjk", "cjk-font", "input-switcher", "nvim", "pdftoppm"]
 
 
-def test_every_dependency_has_a_pacman_command():
+def _installing(keys, missing_latex=lambda: []):
+    calls = []
+    linux.install(keys, lambda argv: calls.append(argv) or True, missing_latex)
+    return calls
+
+
+def test_install_is_one_pacman_command():
+    calls = _installing(["pandoc", "nvim", "pdftoppm"])
+    assert calls == [["sudo", "pacman", "-S", "--needed", "--noconfirm", "pandoc-cli", "neovim", "poppler"]]
+
+
+def test_install_a_tex_adds_whatever_the_template_lacks():
+    calls = _installing(["xelatex", "latex-packages"], lambda: ["caption", "lmodern", "geometry"])
+    assert calls == [
+        [
+            "sudo", "pacman", "-S", "--needed", "--noconfirm",
+            "texlive-xetex", "texlive-latexrecommended", "texlive-fontsrecommended", "texlive-latex",
+        ]
+    ]
+
+
+def test_install_a_bare_machine_gets_every_latex_package():
+    # No kpsewhich to ask yet: `missing_latex` is None.
+    calls = _installing(["xelatex", "latex-packages"], lambda: None)
+    assert set(calls[0][5:]) == {
+        "texlive-xetex",
+        "texlive-latex",
+        "texlive-latexrecommended",
+        "texlive-fontsrecommended",
+    }
+
+
+def test_install_names_each_package_once():
+    calls = _installing(["xelatex", "input-switcher"], lambda: ["fontspec", "caption", "xcolor"])
+    packages = calls[0][5:]
+    assert len(packages) == len(set(packages))
+    assert packages[:3] == ["texlive-xetex", "fcitx5-im", "fcitx5-chinese-addons"]
+
+
+def test_install_latex_packages_alone_does_not_install_the_tex():
+    calls = _installing(["latex-packages"], lambda: ["xcolor"])
+    assert calls[0][5:] == ["texlive-latexrecommended"]
+
+
+def test_install_asks_about_the_template_only_with_a_tex_key():
+    assert _installing(["nvim"], lambda: pytest.fail("not asked")) != []
+
+
+def test_install_with_nothing_to_install_runs_nothing():
+    assert _installing(["no-such-key"], lambda: pytest.fail("not asked")) == []
+    assert _installing([]) == []
+    assert _installing(["latex-packages"], lambda: []) == []
+
+
+def test_install_a_language_adds_xecjk_and_the_font():
+    calls = _installing(["xecjk", "cjk-font"])
+    assert calls[0][5:] == ["texlive-langchinese", "noto-fonts-cjk"]
+
+
+def test_every_dependency_but_latex_packages_is_installable():
     for dependency in DEPENDENCIES:
-        command = linux.install_hint(dependency)
-        assert command and command.startswith("sudo pacman -S "), dependency
+        assert linux.installable(dependency), dependency
+    assert linux.installable("latex-packages")
+    assert not linux.installable("no-such-key")
 
 
-def test_arch_commands():
-    assert linux.install_hint("pandoc") == "sudo pacman -S pandoc-cli"
-    assert linux.install_hint("cjk-font") == "sudo pacman -S noto-fonts-cjk"
-    assert linux.install_hint("pdftoppm") == "sudo pacman -S poppler"
+def test_pacman_is_the_package_manager(monkeypatch):
+    assert linux.PACKAGE_MANAGER == "pacman"
+    monkeypatch.setattr(linux.shutil, "which", lambda name: "/usr/bin/pacman" if name == "pacman" else None)
+    assert linux.package_manager_available() is True
+    monkeypatch.setattr(linux.shutil, "which", lambda name: None)
+    assert linux.package_manager_available() is False
 
 
-def test_the_xelatex_hint_is_texlive_xetex_alone():
-    assert linux.install_hint("xelatex") == "sudo pacman -S texlive-xetex"
-
-
-def test_latex_install_hint_maps_names_to_pacman_packages():
-    assert linux.latex_install_hint(["caption"]) == "sudo pacman -S texlive-latexrecommended"
-    assert linux.latex_install_hint(["lmodern", "geometry"]) == (
-        "sudo pacman -S texlive-fontsrecommended texlive-latex"
-    )
-
-
-def test_latex_install_hint_lists_a_shared_package_once():
-    assert linux.latex_install_hint(["fontspec", "caption", "xcolor"]) == (
-        "sudo pacman -S texlive-latexrecommended"
-    )
-    assert linux.latex_install_hint(["lmodern", "lmodern fonts"]) == (
-        "sudo pacman -S texlive-fontsrecommended"
-    )
-
-
-def test_latex_install_hint_is_none_for_nothing_missing():
-    assert linux.latex_install_hint([]) is None
-
-
-def test_unknown_dependency_offers_no_command():
-    assert linux.install_hint("no-such-dependency") is None
+def test_extend_path_changes_nothing(monkeypatch):
+    monkeypatch.setenv("PATH", "/usr/bin")
+    linux.extend_path()
+    assert os.environ["PATH"] == "/usr/bin"
