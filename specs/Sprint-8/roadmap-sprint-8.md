@@ -220,6 +220,13 @@ user-visible error without ending the session. The full test suite passes.
 
 ---
 
+> **Note, 2026-10-07.** The dev will not test on other operating systems any
+> more, so the `docker/` folder (`Dockerfile`, `README.md`, including M3's
+> `BARE=1` build argument) was removed from the repo, and the local Docker
+> images, build cache and scratch files from the Arch checks were deleted. The
+> specs that mention them (M2's and M3's `validation.md`, `design.md`,
+> `stack.md`) are left as they are.
+
 ## Not in this sprint
 
 The dev's own `postponedfeatures.md` is theirs to manage. Also out, by decision
