@@ -105,6 +105,26 @@ regression pass on the dev's own Mac (§5) and the §6 spec check. The automated
 suite (1554 passed) and the headless Arch runs (§3) were done. Treat the macOS
 install path as untested on a real bare Mac until §4 is run.
 
+### Settled in M4 (merged 2026-10-11, `328c875`)
+
+Full detail in
+[`../features/M4-2026-10-07-unreadable-notebook-files/requirements.md`](../features/M4-2026-10-07-unreadable-notebook-files/requirements.md).
+
+| Decision | Rationale |
+| --- | --- |
+| **One failure text everywhere**: `could not be read: <reason>`, with Python's own reason | Dev's choice, over a friendlier sentence. The tree's `⚠` already used it. |
+| **Browse omits an unreadable file silently**, in both modes | Dev's choice, over a notification; `ContentIndex.refresh` already skips it. |
+| **Entry is included**: error notification, nothing written, what was typed kept | Dev's choice. Not in the roadmap's list. |
+| **A file that goes bad after it was listed is handled where it is read**, with no tree rebuild | Dev's choice. |
+| **`store.read_source` raises `SourceReadError(OSError)`**, so the existing compile guards report it unchanged | The agent's proposal, kept. |
+| **Inspect Tree's rename of an unreadable file completes the move and skips the retitle**, with a warning | The agent's proposal, kept: a third read site beyond the roadmap's list. |
+| **`tag_index` leaves a skipped file out of its cache**, so it is retried on every call | The agent's proposal, kept. |
+
+**Merged with the by-hand pass not run.** At the dev's request ("merge m4"),
+M4 was merged with §3 of its `validation.md` (the by-hand pass on a scratch
+tree) still unchecked. The automated suite (1577 passed) and the greps in §2
+were done. Treat the TUI flows as covered by Pilot tests only.
+
 ### M4 added after the 2026-10-07 bug review
 
 The sprint originally had three milestones. The dev added M4 for the two
