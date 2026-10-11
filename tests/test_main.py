@@ -236,6 +236,27 @@ def test_compile_cli_prints_failures_to_stderr_and_exits_1(tmp_path, monkeypatch
     assert "! Undefined control sequence." in err
 
 
+def test_compile_cli_reports_an_unreadable_source_and_exits_1(tmp_path, monkeypatch, capsys):
+    import pytest
+
+    vocab = _chinese_config(tmp_path, monkeypatch)
+    (vocab / "A-Bad.md").write_bytes(b"# Bad\n\xff\n")
+    monkeypatch.setattr(
+        "vimdiomas.compile._run_pandoc", lambda md, dst, kind: dst.write_bytes(b"%PDF fake")
+    )
+
+    with pytest.raises(SystemExit) as exit_info:
+        main_module._compile()
+
+    assert exit_info.value.code == 1
+    out, err = capsys.readouterr()
+    assert "Good.pdf" in out
+    assert "A-Bad.md" in err
+    assert "could not be read: " in err
+    assert "Traceback" not in out + err
+    assert (vocab / "Good.pdf").exists()
+
+
 def test_compile_cli_exits_0_on_a_clean_tree(tmp_path, monkeypatch, capsys):
     _chinese_config(tmp_path, monkeypatch)
     monkeypatch.setattr(

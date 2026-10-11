@@ -2162,3 +2162,100 @@ async def test_a_create_into_a_hand_edited_file_keeps_the_hand_edits(source_tree
     # The hand-added lamb is still there, with the app's pork after it.
     assert [e.word for e in meat.entries] == ["羊肉", "牛肉", "猪肉"]
     assert warnings == []
+
+
+# -- Sprint 8 M4: a file that went bad after the tree was built ------------
+
+BAD_BYTES = b"# Bad\n\xff\n"
+
+
+def _errors(pilot):
+    return [n.message for n in pilot.app._notifications if n.severity == "error"]
+
+
+async def test_creating_an_entry_in_a_file_that_went_bad_notifies_and_writes_nothing(source_tree):
+    app = _HostApp(source_tree)
+    async with app.run_test() as pilot:
+        tree = pilot.app.screen.query_one("#entry-tree", EntryTree)
+        meat = _find_one(tree.root, "category", file_name="Food.md", category_name="Meat")
+        _select(tree, meat)
+        await pilot.pause()
+        path = source_tree / "Vocabulary" / "Food.md"
+        path.write_bytes(BAD_BYTES)
+
+        pilot.app.screen.query_one("#word").value = "猪肉"
+        pilot.app.screen.query_one("#reading").value = "zhu1rou4"
+        pilot.app.screen.query_one("#translation").value = "pork"
+        pilot.app.screen._create_entry()
+        await pilot.pause()
+
+        assert pilot.app.is_running
+        assert path.read_bytes() == BAD_BYTES
+        [message] = _errors(pilot)
+        assert message.startswith("Food.md could not be read: ")
+        assert pilot.app.screen.query_one("#word").value == "猪肉"
+        assert pilot.app.screen.query_one("#translation").value == "pork"
+
+
+async def test_creating_a_category_in_a_file_that_went_bad_notifies_and_writes_nothing(source_tree):
+    app = _HostApp(source_tree)
+    async with app.run_test() as pilot:
+        tree = pilot.app.screen.query_one("#entry-tree", EntryTree)
+        new_cat = _find_one(tree.root, "new_category", file_name="Food.md")
+        _select(tree, new_cat)
+        await pilot.pause()
+        path = source_tree / "Vocabulary" / "Food.md"
+        path.write_bytes(BAD_BYTES)
+
+        pilot.app.screen.query_one("#category-name").value = "Vegetables"
+        pilot.app.screen._create_entry()
+        await pilot.pause()
+
+        assert pilot.app.is_running
+        assert path.read_bytes() == BAD_BYTES
+        [message] = _errors(pilot)
+        assert message.startswith("Food.md could not be read: ")
+        assert pilot.app.screen.query_one("#category-name").value == "Vegetables"
+        assert pilot.app.screen._active_target.kind == "new_category"
+
+
+async def test_creating_a_subtitle_in_a_file_that_went_bad_notifies_and_writes_nothing(grammar_tree):
+    app = _HostApp(grammar_tree)
+    async with app.run_test() as pilot:
+        tree = pilot.app.screen.query_one("#entry-tree", EntryTree)
+        conjunctions = _find_one(tree.root, "category", file_name="G.md", category_name="Conjunctions")
+        _select(tree, conjunctions)
+        await pilot.pause()
+        path = grammar_tree / "Grammar" / "G.md"
+        path.write_bytes(BAD_BYTES)
+
+        pilot.app.screen.query_one("#subtitle", SelectField).value = NEW_SUBTITLE
+        pilot.app.screen.query_one("#subtitle-name").value = "adversative conjunction"
+        pilot.app.screen.query_one("#word").value = "但是"
+        pilot.app.screen._create_entry()
+        await pilot.pause()
+
+        assert pilot.app.is_running
+        assert path.read_bytes() == BAD_BYTES
+        [message] = _errors(pilot)
+        assert message.startswith("G.md could not be read: ")
+        assert pilot.app.screen.query_one("#subtitle-name").value == "adversative conjunction"
+        assert pilot.app.screen.query_one("#word").value == "但是"
+
+
+async def test_selecting_a_grammar_category_in_a_file_that_went_bad_leaves_no_subtitle_choices(
+    grammar_tree,
+):
+    app = _HostApp(grammar_tree)
+    async with app.run_test() as pilot:
+        tree = pilot.app.screen.query_one("#entry-tree", EntryTree)
+        conjunctions = _find_one(tree.root, "category", file_name="G.md", category_name="Conjunctions")
+        (grammar_tree / "Grammar" / "G.md").write_bytes(BAD_BYTES)
+
+        _select(tree, conjunctions)
+        await pilot.pause()
+
+        assert pilot.app.is_running
+        assert pilot.app.screen._read_category(conjunctions.data) is None
+        assert pilot.app.screen.query_one("#subtitle", SelectField).choices == []
+        assert all(m.startswith("G.md could not be read: ") for m in _errors(pilot))

@@ -7,12 +7,14 @@ import pytest
 from vimdiomas.languages import ALPHABETICAL, CHARACTER_PHONETIC
 from vimdiomas.store import (
     ContentIndex,
+    SourceReadError,
     TagCache,
     ensure_tree,
     fold,
     fuzzy,
     is_grammar,
     pinyin_key,
+    read_source,
     search_content,
     tag_index,
     walk,
@@ -520,3 +522,86 @@ def test_content_index_skips_an_unreadable_file(tmp_path):
     index = ContentIndex()
     index.refresh(root, kind=CHARACTER_PHONETIC)
     assert {p.stem for p in index.entries} == {"Good"}
+
+
+# -- Sprint 8 M4: one reader for a notebook's source -------------------------
+
+BAD_BYTES = b"# Bad\n\xff\n"
+GOOD_TEXT = "# Good\n\n字\tzi4\tchar\n\n## Tags\n\n#fruit\n"
+
+
+def test_read_source_returns_the_text(tmp_path):
+    path = tmp_path / "Good.md"
+    path.write_text(GOOD_TEXT, encoding="utf-8")
+
+    assert read_source(path) == GOOD_TEXT
+
+
+def test_read_source_reports_invalid_utf8_as_a_source_read_error(tmp_path):
+    path = tmp_path / "Bad.md"
+    path.write_bytes(BAD_BYTES)
+
+    with pytest.raises(SourceReadError) as exc_info:
+        read_source(path)
+
+    assert str(exc_info.value).startswith("could not be read: ")
+    assert "0xff" in str(exc_info.value)
+    assert isinstance(exc_info.value, OSError)
+    assert isinstance(exc_info.value.__cause__, UnicodeDecodeError)
+
+
+def test_read_source_reports_a_missing_file_as_a_source_read_error(tmp_path):
+    with pytest.raises(SourceReadError) as exc_info:
+        read_source(tmp_path / "Gone.md")
+
+    assert str(exc_info.value).startswith("could not be read: ")
+    assert isinstance(exc_info.value.__cause__, FileNotFoundError)
+
+
+def test_the_tree_warning_is_the_readers_message(tmp_path):
+    (tmp_path / "Bad.md").write_bytes(BAD_BYTES)
+    with pytest.raises(SourceReadError) as exc_info:
+        read_source(tmp_path / "Bad.md")
+
+    tree = walk(tmp_path, kind=CHARACTER_PHONETIC)
+
+    assert tree.files[0].warnings[0].message == str(exc_info.value)
+
+
+@pytest.mark.parametrize("bad_name", ["0-Bad.md", "z-Bad.md"])
+def test_tag_index_skips_an_unreadable_file(tmp_path, bad_name):
+    (tmp_path / bad_name).write_bytes(BAD_BYTES)
+    good = tmp_path / "Good.md"
+    good.write_text(GOOD_TEXT, encoding="utf-8")
+
+    cache = tag_index(tmp_path, kind=CHARACTER_PHONETIC)
+
+    assert cache.files_for("fruit") == {good}
+    assert tmp_path / bad_name not in cache.mtimes
+    assert tmp_path / bad_name not in cache.tags
+
+
+def test_tag_index_picks_a_file_up_once_it_is_fixed(tmp_path):
+    path = tmp_path / "Bad.md"
+    path.write_bytes(BAD_BYTES)
+    cache = tag_index(tmp_path, kind=CHARACTER_PHONETIC)
+    assert path not in cache.tags
+
+    path.write_text(GOOD_TEXT, encoding="utf-8")
+    cache = tag_index(tmp_path, cache, kind=CHARACTER_PHONETIC)
+
+    assert cache.files_for("fruit") == {path}
+
+
+def test_tag_index_drops_a_file_that_goes_bad_after_it_was_indexed(tmp_path):
+    path = tmp_path / "One.md"
+    path.write_text(GOOD_TEXT, encoding="utf-8")
+    cache = tag_index(tmp_path, kind=CHARACTER_PHONETIC)
+    assert cache.files_for("fruit") == {path}
+
+    path.write_bytes(BAD_BYTES)
+    new_mtime = time.time() + 5
+    os.utime(path, (new_mtime, new_mtime))
+    cache = tag_index(tmp_path, cache, kind=CHARACTER_PHONETIC)
+
+    assert cache.files_for("fruit") == set()

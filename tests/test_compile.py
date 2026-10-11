@@ -1648,3 +1648,69 @@ def test_the_xecjk_patch_is_inside_the_cjk_conditional():
     assert "xeCJKDeclareCharClass" in guarded
     assert "xeCJK_FullRight_and_Boundary:" not in template[:start] + template[end:]
     assert "xeCJKDeclareCharClass" not in template[:start] + template[end:]
+
+
+# -- Sprint 8 M4: an unreadable source is a failure of that file -------------
+
+BAD_BYTES = b"# Bad\n\xff\n"
+
+
+def _bad_before_good(tree_root):
+    vocab = tree_root / "Vocabulary"
+    vocab.mkdir(parents=True, exist_ok=True)
+    bad = vocab / "A-Bad.md"
+    bad.write_bytes(BAD_BYTES)
+    good = vocab / "B-Good.md"
+    good.write_text("# B-Good\n\n字\tzi4\tchar\n", encoding="utf-8")
+    return bad, good
+
+
+def _write_pdf(markdown, dst, kind):
+    dst.write_bytes(b"%PDF fake")
+
+
+def test_compile_all_reports_an_unreadable_source_and_compiles_the_rest(tmp_path, monkeypatch):
+    tree_root = tmp_path / "tree-Chinese"
+    bad, good = _bad_before_good(tree_root)
+    monkeypatch.setattr("vimdiomas.compile._run_pandoc", _write_pdf)
+
+    report = compile_all(tree_root, kind=CHARACTER_PHONETIC)
+
+    [failure] = report.failed
+    assert failure.source == bad
+    assert failure.message.startswith("could not be read: ")
+    assert "0xff" in failure.message
+    assert report.compiled == [notebook_path_for(good)]
+    assert notebook_path_for(good).exists()
+    assert not notebook_path_for(bad).exists()
+    assert report.warnings == []
+    cache = compile_module._load_cache()
+    assert str(good) in cache
+    assert str(bad) not in cache
+
+
+def test_a_stamp_earned_before_the_source_went_bad_survives(tmp_path, monkeypatch):
+    tree_root = tmp_path / "tree-Chinese"
+    bad, good = _bad_before_good(tree_root)
+    bad.write_text("# A-Bad\n\n字\tzi4\tchar\n", encoding="utf-8")
+    monkeypatch.setattr("vimdiomas.compile._run_pandoc", _write_pdf)
+    compile_all(tree_root, kind=CHARACTER_PHONETIC)
+    stamp = compile_module._load_cache()[str(bad)]
+
+    bad.write_bytes(BAD_BYTES)
+    report = compile_all(tree_root, kind=CHARACTER_PHONETIC)
+
+    assert [f.source for f in report.failed] == [bad]
+    assert compile_module._load_cache()[str(bad)] == stamp
+    assert notebook_path_for(bad).exists()
+
+
+def test_compile_file_raises_source_read_error_on_an_unreadable_source(tmp_path, monkeypatch):
+    from vimdiomas.store import SourceReadError
+
+    source = tmp_path / "Bad.md"
+    source.write_bytes(BAD_BYTES)
+    monkeypatch.setattr("vimdiomas.compile._run_pandoc", _write_pdf)
+
+    with pytest.raises(SourceReadError, match="could not be read"):
+        compile_file(source, tmp_path / "Bad.pdf", kind=CHARACTER_PHONETIC)

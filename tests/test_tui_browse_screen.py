@@ -771,6 +771,65 @@ async def test_enter_on_a_result_from_a_file_that_fails_to_compile_notifies(cont
             assert "Conjunctions.md" in note.message
 
 
+# -- Sprint 8 M4: an unreadable source is left out, silently ----------------
+
+
+def _notes(pilot):
+    return [n.message for n in pilot.app._notifications]
+
+
+async def test_tag_filter_skips_an_unreadable_file_in_filename_mode(tree):
+    (tree / "Vocabulary" / "0-Bad.md").write_bytes(b"# Bad\n\xff\n")
+    (tree / "Vocabulary" / "0-Bad.pdf").write_bytes(b"%PDF fake")
+
+    app = _HostApp(tree)
+    async with app.run_test() as pilot:
+        pilot.app.screen.query_one("#tag-filter").value = "food"
+        await pilot.pause()
+
+        assert _labels(pilot.app.screen) == ["Vocabulary/Food.pdf"]
+        assert _notes(pilot) == []
+        assert pilot.app.is_running
+
+
+async def test_tag_filter_skips_an_unreadable_file_in_content_mode(content_tree):
+    (content_tree / "Vocabulary" / "0-Bad.md").write_bytes(b"# Bad\n\xff\n")
+
+    app = _HostApp(content_tree)
+    async with app.run_test() as pilot:
+        await pilot.press("tab")
+        await pilot.pause()
+        pilot.app.screen.query_one("#query", Input).value = "ni"
+        pilot.app.screen.query_one("#tag-filter", Input).value = "greeting"
+        await pilot.pause()
+
+        assert any("你好" in label for label in _labels(pilot.app.screen))
+        assert _notes(pilot) == []
+        assert pilot.app.is_running
+
+
+async def test_enter_on_a_result_whose_source_went_bad_notifies(content_tree):
+    app = _HostApp(content_tree)
+    with patch("vimdiomas.tui.screens.base.open_file") as mock_open_file:
+        async with app.run_test() as pilot:
+            await pilot.press("tab")
+            await pilot.pause()
+            pilot.app.screen.query_one("#query", Input).value = "copulative"
+            await pilot.pause()
+            (content_tree / "Grammar" / "Conjunctions.md").write_bytes(b"# Bad\n\xff\n")
+
+            pilot.app.screen.query_one("#results", OptionList).focus()
+            await pilot.pause()
+            await pilot.press("enter")
+            await pilot.pause()
+
+            mock_open_file.assert_not_called()
+            [note] = [n for n in pilot.app._notifications if n.severity == "error"]
+            assert "Conjunctions.md" in note.message
+            assert "could not be read: " in note.message
+            assert pilot.app.is_running
+
+
 async def test_content_mode_bracket_row_shows_literal_brackets(tmp_path):
     root = tmp_path / "tree"
     vocab = root / "Vocabulary"

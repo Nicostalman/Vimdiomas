@@ -21,7 +21,15 @@ from vimdiomas.compile import notebook_path_for
 from vimdiomas.languages import LanguageKind
 from vimdiomas.models import Warning
 from vimdiomas.pdf_preview import RasterCache, extract_text, pdftoppm_available
-from vimdiomas.store import DirNode, FileNode, is_grammar, validate_name, walk
+from vimdiomas.store import (
+    DirNode,
+    FileNode,
+    SourceReadError,
+    is_grammar,
+    read_source,
+    validate_name,
+    walk,
+)
 from vimdiomas.terminal import (
     cell_pixel_size,
     clear_kitty_images,
@@ -487,9 +495,9 @@ class InspectTreeScreen(PanelScreen):
 
         if self.mode == "md":
             try:
-                text = data.path.read_text(encoding="utf-8")
-            except OSError as exc:
-                self._show_preview_message(literal(f"Could not read {data.path.name}: {exc}"))
+                text = read_source(data.path)
+            except SourceReadError as exc:
+                self._show_preview_message(literal(f"{data.path.name} {exc}"))
                 return
             self._show_preview_message(literal(text))
             return
@@ -736,7 +744,19 @@ class InspectTreeScreen(PanelScreen):
         old_path = data.path
         move(old_path, new_md)
         self._remap_pending_deletes(old_path, new_md)
-        retitled = _retitle(new_md.read_text(encoding="utf-8"), new_name)
+        try:
+            retitled = _retitle(read_source(new_md), new_name)
+        except SourceReadError as exc:
+            # The file is renamed; its title can't be rewritten, and a
+            # recompile could only fail the same way (Sprint 8 M4).
+            if had_pdf:
+                old_pdf.unlink()
+            self.app.notify(
+                f"{new_name} was renamed, but its title was left as it is: {exc}",
+                severity="warning",
+                markup=False,
+            )
+            return
         new_md.write_text(retitled, encoding="utf-8")
 
         if had_pdf:

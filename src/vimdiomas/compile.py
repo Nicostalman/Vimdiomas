@@ -14,7 +14,7 @@ from vimdiomas.languages import LanguageKind
 from vimdiomas.models import Category, Deck, Entry, Warning
 from vimdiomas.parser import parse
 from vimdiomas.pinyin import is_hanzi, to_tone_mark_syllables, to_tone_marks
-from vimdiomas.store import is_grammar
+from vimdiomas.store import SourceReadError, is_grammar, read_source
 
 # Staleness cache for compile_all: maps each source .md's absolute path to a
 # stamp of what the renderer produced for it last time (see _stamp_for).
@@ -383,7 +383,7 @@ def render_source(source_path: Path, *, kind: LanguageKind, grammar: bool = Fals
     per file per run: `compile_all` needs it for the skip decision and hands
     it on to `compile_file` rather than rendering twice."""
     deck, warnings = parse(
-        source_path.read_text(encoding="utf-8"), source_path.stem, kind=kind, grammar=grammar
+        read_source(source_path), source_path.stem, kind=kind, grammar=grammar
     )
     unsupported: list[str] = []
     markdown = render_markdown(deck, kind=kind, grammar=grammar, unsupported=unsupported)
@@ -581,7 +581,14 @@ def compile_all(tree_root: Path, *, kind: LanguageKind, force: bool = False) -> 
         for source_path in sorted(tree_root.rglob("*.md")):
             notebook_path = notebook_path_for(source_path)
             grammar = is_grammar(source_path, tree_root)
-            render = render_source(source_path, kind=kind, grammar=grammar)
+            # A source that can't be read is a failure of that file alone: no
+            # warnings (it can't be parsed), and its cache entry is left as
+            # it is, so a stamp earned before it went bad is kept.
+            try:
+                render = render_source(source_path, kind=kind, grammar=grammar)
+            except SourceReadError as exc:
+                report.failed.append(CompileFailure(source_path, failure_message(exc)))
+                continue
             # Reported for every file, rebuilt or skipped (M3's rule): a
             # warning describes the source, not the run, so one shown only on
             # a rebuild would never be seen again (M9).

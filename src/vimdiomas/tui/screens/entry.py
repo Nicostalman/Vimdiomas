@@ -16,7 +16,7 @@ from vimdiomas.config import NotebookConfig
 from vimdiomas.input_method import switch_to
 from vimdiomas.models import Category, Deck, Entry, Subtitle
 from vimdiomas.parser import parse
-from vimdiomas.store import DirNode, FileNode, is_grammar, walk
+from vimdiomas.store import DirNode, FileNode, SourceReadError, is_grammar, read_source, walk
 from vimdiomas.tui.screens.base import (
     FooterHint,
     NoShiftArrowsTree,
@@ -271,7 +271,7 @@ class EntryScreen(PanelScreen):
         subtitle_field.disabled = not is_grammar_category
         if is_grammar_category:
             category = self._read_category(target)
-            subtitle_field.set_choices(_subtitle_choices(category))
+            subtitle_field.set_choices(_subtitle_choices(category) if category else [])
         self._sync_subtitle_name_field(is_grammar_category, subtitle_field.value)
 
         self.query_one("#create-button", Button).disabled = not is_valid
@@ -294,19 +294,29 @@ class EntryScreen(PanelScreen):
             next_field_id = "subtitle-name" if event.value == NEW_SUBTITLE else "word"
             self.query_one(f"#{next_field_id}").focus()
 
-    def _read_category(self, target: NodeData) -> Category:
+    def _read_category(self, target: NodeData) -> Category | None:
         """Re-parse `target`'s file (grammar mode) and return the live
         `Category` object matching `target.category_name` — always freshly
-        read from disk, same as every other create path in this screen."""
+        read from disk, same as every other create path in this screen.
+        `None` if the file can't be read (already reported)."""
         deck = self._read_deck(target)
+        if deck is None:
+            return None
         return next(c for c in deck.categories if c.name == target.category_name)
 
-    def _read_deck(self, target: NodeData) -> Deck:
+    def _read_deck(self, target: NodeData) -> Deck | None:
+        """The target's file, freshly parsed. A file that can't be read is
+        reported and gives `None`: every caller stops there, writes nothing
+        and leaves the form as it is (Sprint 8 M4)."""
+        try:
+            text = read_source(target.file_path)
+        except SourceReadError as exc:
+            self.notify(
+                f"{target.file_path.name} {exc}", severity="error", markup=False
+            )
+            return None
         deck, _ = parse(
-            target.file_path.read_text(encoding="utf-8"),
-            target.file_path.stem,
-            kind=self.config.kind,
-            grammar=target.grammar,
+            text, target.file_path.stem, kind=self.config.kind, grammar=target.grammar
         )
         return deck
 
@@ -406,6 +416,8 @@ class EntryScreen(PanelScreen):
         entry = Entry(word=word, reading=reading, translation=translation, note=note)
         path = target.file_path
         deck = self._read_deck(target)
+        if deck is None:
+            return
 
         if target.kind == "category":
             category = next(c for c in deck.categories if c.name == target.category_name)
@@ -427,6 +439,8 @@ class EntryScreen(PanelScreen):
         `(new subtitle)` — see requirements.md's Decisions."""
         path = target.file_path
         deck = self._read_deck(target)
+        if deck is None:
+            return
         category = next(c for c in deck.categories if c.name == target.category_name)
 
         subtitle_field = self.query_one("#subtitle", SelectField)
@@ -523,6 +537,8 @@ class EntryScreen(PanelScreen):
             return
 
         deck = self._read_deck(target)
+        if deck is None:
+            return
         deck.categories.append(Category(name=category_name, entries=[]))
         save(deck, path, kind=self.config.kind)
         self._dirty_files.add(path)

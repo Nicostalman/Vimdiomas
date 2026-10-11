@@ -33,6 +33,23 @@ class DirNode:
     files: list[FileNode] = field(default_factory=list)
 
 
+class SourceReadError(OSError):
+    """A notebook's `.md` that could not be read or decoded (Sprint 8 M4).
+    An `OSError`, so the places that already catch one around a compile
+    (`autocompile_one`, `open_source_pdf`, `compile_all`) report it with no
+    change. Its message is the one wording every surface shows."""
+
+
+def read_source(path: Path) -> str:
+    """The text of one notebook source. Every read of a notebook's `.md`
+    goes through here, so a file with a stray byte is reported in one way
+    and never raises anything else."""
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise SourceReadError(f"could not be read: {exc}") from exc
+
+
 def _parse_file(path: Path, tree_root: Path, kind: LanguageKind) -> FileNode:
     """One file as a tree node, with the warnings its text earned.
 
@@ -48,9 +65,9 @@ def _parse_file(path: Path, tree_root: Path, kind: LanguageKind) -> FileNode:
     malformed row.
     """
     try:
-        text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
-        return FileNode(path=path, warnings=[Warning(0, f"could not be read: {exc}", "")])
+        text = read_source(path)
+    except SourceReadError as exc:
+        return FileNode(path=path, warnings=[Warning(0, str(exc), "")])
     deck, warnings = parse(
         text, path.stem, kind=kind, grammar=is_grammar(path, tree_root)
     )
@@ -180,13 +197,23 @@ def tag_index(root: Path, cache: TagCache | None = None, *, kind: LanguageKind) 
     new_tags: dict[Path, list[str]] = {}
 
     for path in root.rglob("*.md"):
-        mtime = path.stat().st_mtime
-        new_mtimes[path] = mtime
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            continue
         if cache.mtimes.get(path) == mtime and path in cache.tags:
+            new_mtimes[path] = mtime
             new_tags[path] = cache.tags[path]
-        else:
-            deck, _ = parse(path.read_text(encoding="utf-8"), path.stem, kind=kind)
-            new_tags[path] = deck.tags
+            continue
+        # A file that can't be read is left out of the cache, not cached as
+        # tagless: it is retried on the next call and indexed once fixed.
+        try:
+            text = read_source(path)
+        except SourceReadError:
+            continue
+        deck, _ = parse(text, path.stem, kind=kind)
+        new_mtimes[path] = mtime
+        new_tags[path] = deck.tags
 
     return TagCache(mtimes=new_mtimes, tags=new_tags)
 
@@ -315,8 +342,8 @@ class ContentIndex:
                 rebuilt[path] = cached
                 continue
             try:
-                text = path.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
+                text = read_source(path)
+            except SourceReadError:
                 continue
             deck, _ = parse(text, path.stem, kind=kind, grammar=is_grammar(path, tree_root))
             rebuilt[path] = (mtime, deck)

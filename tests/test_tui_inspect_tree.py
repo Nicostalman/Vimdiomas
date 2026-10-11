@@ -1739,3 +1739,83 @@ def test_the_missing_tool_messages_name_no_command():
     for message in (inspect.MSG_NO_POPPLER, inspect.MSG_NO_NVIM):
         assert "`" not in message
         assert not any(word in message for word in ("brew", "pacman", "sudo"))
+
+
+# -- Sprint 8 M4: an unreadable source is reported, never fatal ------------
+
+
+@pytest.fixture
+def bad_tree(source_tree):
+    (source_tree / "Vocabulary" / "Bad.md").write_bytes(b"# Bad\n\xff\n")
+    return source_tree
+
+
+def _errors(pilot):
+    return [n.message for n in pilot.app._notifications if n.severity == "error"]
+
+
+async def test_md_preview_of_an_unreadable_file_says_so_and_keeps_the_warning(bad_tree):
+    app = _HostApp(bad_tree)
+    async with app.run_test() as pilot:
+        await pilot.press("tab")
+        await pilot.pause()
+        tree = pilot.app.screen.query_one("#inspect-tree", InspectTree)
+        _select(tree, "Bad ⚠")
+        await pilot.pause()
+
+        assert pilot.app.is_running
+        preview = _preview_text(pilot.app.screen)
+        assert preview.startswith("Bad.md could not be read: ")
+        assert "0xff" in preview
+        block = pilot.app.screen.query_one("#preview-warnings")
+        assert block.display is True
+        assert "could not be read" in str(block.render())
+
+
+async def test_enter_in_pdf_mode_on_an_unreadable_file_notifies_and_opens_nothing(
+    bad_tree, monkeypatch
+):
+    opened = []
+    monkeypatch.setattr("vimdiomas.tui.screens.base.open_file", opened.append)
+
+    app = _HostApp(bad_tree)
+    async with app.run_test() as pilot:
+        tree = pilot.app.screen.query_one("#inspect-tree", InspectTree)
+        _select(tree, "Bad ⚠")
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert pilot.app.is_running
+        assert opened == []
+        [message] = _errors(pilot)
+        assert "Bad.md" in message
+        assert "could not be read: " in message
+        assert isinstance(pilot.app.screen, InspectTreeScreen)
+
+
+async def test_renaming_an_unreadable_file_moves_it_and_warns(bad_tree, monkeypatch):
+    compile_calls = []
+    monkeypatch.setattr(
+        "vimdiomas.tui.screens.base.compile_file", lambda *a, **kw: compile_calls.append(a)
+    )
+    vocab = bad_tree / "Vocabulary"
+    (vocab / "Bad.pdf").write_bytes(b"%PDF-fake")
+
+    app = _HostApp(bad_tree)
+    async with app.run_test() as pilot:
+        tree = pilot.app.screen.query_one("#inspect-tree", InspectTree)
+        _select(tree, "Bad ⚠")
+        await pilot.pause()
+        await _rename(pilot, "Worse")
+        await pilot.app.workers.wait_for_complete()
+
+        assert pilot.app.is_running
+        assert not (vocab / "Bad.md").exists()
+        assert (vocab / "Worse.md").read_bytes() == b"# Bad\n\xff\n"
+        assert not (vocab / "Bad.pdf").exists()
+        assert compile_calls == []
+        [note] = [n for n in pilot.app._notifications if n.severity == "warning"]
+        assert note.message.startswith("Worse was renamed, but its title was left as it is: ")
+        assert "could not be read: " in note.message
+        assert _errors(pilot) == []
