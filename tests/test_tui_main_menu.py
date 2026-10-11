@@ -263,6 +263,34 @@ async def test_compile_with_a_failing_file_reports_it_and_stays_up(config, monke
         assert str(vocab / "Bad [i].md") not in compile_module._load_cache()
 
 
+async def test_compile_with_an_unreadable_file_reports_it_and_stays_up(config, monkeypatch):
+    import vimdiomas.compile as compile_module
+
+    monkeypatch.setattr(compile_module, "CACHE_PATH", config.root / "cache.json")
+    vocab = config.tree_root("Chinese") / "Vocabulary"
+    vocab.mkdir()
+    (vocab / "A-Bad.md").write_bytes(b"# Bad\n\xff\n")
+    (vocab / "Good.md").write_text("# Good\n\n字\tzi4\tchar\n", encoding="utf-8")
+    monkeypatch.setattr(
+        compile_module, "_run_pandoc", lambda md, dst, kind: dst.write_bytes(b"%PDF fake")
+    )
+
+    app = VimdiomasApp(config)
+    async with app.run_test() as pilot:
+        await _open_notebook_menu(pilot)
+        await _select(pilot, 3)
+
+        assert pilot.app.is_running
+        assert isinstance(pilot.app.screen, PlaceholderScreen)
+        shown = str(pilot.app.screen.query_one("Static").render())
+        assert "Good.pdf" in shown
+        assert "Failed:" in shown
+        assert "A-Bad.md" in shown
+        assert "could not be read: " in shown
+        assert "0xff" in shown
+        assert (vocab / "Good.pdf").exists()
+
+
 def test_compile_summary_lists_warnings_below_failures():
     from pathlib import Path
 

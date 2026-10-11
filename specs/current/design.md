@@ -466,6 +466,25 @@ Something going wrong with one file never ends the session (Sprint 6 M2):
 - **A rename or creation the filesystem refuses** (permissions, a full disk)
   shows the OS's reason in an error notification; the tree is left as the
   disk has it.
+- **A file that cannot be read** (invalid UTF-8, a permission error) is
+  reported in one wording everywhere, `could not be read: <reason>`, with
+  Python's own reason (Sprint 8 M4). It is not refused, it is reported, and
+  never ends the session:
+  - **Compile** lists it under *Failed:* and goes on with the other files;
+    `vimdiomas compile` prints it to stderr and exits 1. Its cache entry is left
+    alone, so the next Compile retries it.
+  - **The single-file compile paths** (`Enter` in Inspect Tree's PDF mode and
+    in Browse, and the autocompile after an Entry write or a rename) show an
+    error notification, `Compile failed for <file>`, with the same text, and
+    open nothing.
+  - **Browse** leaves it out of a tag filter's results, in both modes, without
+    comment: the `⚠` in Inspect Tree and Entry already says so.
+  - **Inspect Tree's MD preview** shows `<file> could not be read: <reason>` in
+    place of the text; the tree's `⚠` and the warning block stay.
+  - **Entry** shows an error notification, `<file> could not be read:
+    <reason>`, writes nothing and keeps what was typed.
+  - **Renaming it in Inspect Tree** moves the file, leaves its `# Title` line
+    as it is, starts no recompile and shows a warning saying so.
 
 ### A file edited by hand is checked, never refused
 

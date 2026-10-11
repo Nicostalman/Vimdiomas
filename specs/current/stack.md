@@ -174,9 +174,17 @@ hashes the kind's font name (`kind.cjk_font`), so a tree compiled on one OS reco
 
 **A compile failure is per file** (Sprint 6 M2). `compile_all` returns a
 `CompileReport` (`compiled`, `failed`), catching `CalledProcessError` and
-`OSError` per file. The rest of the run continues, the successes' stamps are
+`OSError` per file, and `SourceReadError` from `render_source` (Sprint 8 M4;
+that file's cache entry is left alone). The rest of the run continues, the successes' stamps are
 saved in a `finally`, and a failure carries the last `STDERR_TAIL_LINES` (10)
 non-empty lines of stderr. `vimdiomas compile` exits 1 if any file failed.
+
+**One reader for a notebook's `.md`** (Sprint 8 M4). `store.read_source(path)`
+is the only way the app reads one: it wraps an `OSError` or a
+`UnicodeDecodeError` in `store.SourceReadError`, an `OSError` subclass whose
+message is `could not be read: <reason>`. Being an `OSError`, it is caught
+wherever a compile is already guarded (`autocompile_one`, `open_source_pdf`,
+`compile_all`). `tag_index` leaves an unreadable file out of its cache.
 
 **Every compile path records its stamp** (Sprint 6 M3). `compile_file` is the
 one function that produces a PDF, and on success it records the stamp of what

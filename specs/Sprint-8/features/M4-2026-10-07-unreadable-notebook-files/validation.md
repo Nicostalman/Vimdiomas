@@ -5,18 +5,18 @@ The acceptance bar. Section numbers (§) refer to
 
 ## 1. Automated
 
-- [ ] `uv run pytest` passes in full.
-- [ ] Store tests: `read_source` on a readable, an undecodable and a missing
+- [x] `uv run pytest` passes in full.
+- [x] Store tests: `read_source` on a readable, an undecodable and a missing
       file; `tag_index` with the bad file before and after the good one, never
       listing the bad one, and picking it up once fixed; `walk` and
       `ContentIndex` unchanged.
-- [ ] Compile tests: `Bad.md` (`b'# Bad\n\xff\n'`) before `Good.md` gives one
+- [x] Compile tests: `Bad.md` (`b'# Bad\n\xff\n'`) before `Good.md` gives one
       `failed` entry starting `could not be read:`, `Good.pdf` compiled, `Good`'s
       stamp saved, no stamp for `Bad`; a stamp earned before the file went bad
       survives; `compile_file` on it raises `SourceReadError`.
-- [ ] CLI test: `vimdiomas compile` on that tree prints the failure to stderr,
+- [x] CLI test: `vimdiomas compile` on that tree prints the failure to stderr,
       exits 1, prints no traceback, and still writes `Good.pdf`.
-- [ ] TUI tests (Pilot, the app stays running after each): the notebook menu's
+- [x] TUI tests (Pilot, the app stays running after each): the notebook menu's
       Compile lists *Failed:* with the file and its cause; Browse's tag filter
       in filename mode and in content mode returns the good file's result with
       no notification; Browse `enter` and Inspect Tree PDF-mode `enter` on a
@@ -28,11 +28,11 @@ The acceptance bar. Section numbers (§) refer to
 
 ## 2. What the greps should find
 
-- [ ] `git grep -n "read_text(encoding=\"utf-8\")" -- src/vimdiomas/store.py
+- [x] `git grep -n "read_text(encoding=\"utf-8\")" -- src/vimdiomas/store.py
       src/vimdiomas/compile.py src/vimdiomas/tui` prints only `read_source`'s
       own line, the compile cache's read (`_load_cache`) and no other notebook
       read. Anything else is either added to the spec or explained here.
-- [ ] `git grep -n "Could not read" -- src` prints only the delete flow's
+- [x] `git grep -n "Could not read" -- src` prints only the delete flow's
       `Could not read {name} — not deleted.` (a stat, not a source read).
 
 ## 3. By hand (the dev)
@@ -63,5 +63,5 @@ the config pointing at it. `Bad.md` sorts first.
 
 ## 4. Specs
 
-- [ ] `design.md` and `stack.md` updated as §8 lists.
-- [ ] Code and these three files agree.
+- [x] `design.md` and `stack.md` updated as §8 lists.
+- [x] Code and these three files agree.
