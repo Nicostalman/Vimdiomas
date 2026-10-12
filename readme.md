@@ -76,4 +76,8 @@ rm -rf ~/.local/share/vimdiomas
 rm ~/.local/bin/vimdiomas
 ```
 
-Your notes live wherever you pointed the wizard (`~/Documents/Vimdiomas` by default) and your settings in `~/.config/vimdiomas/`. Delete those too if you really mean it.
+Your notes live wherever you pointed the wizard (`~/Documents/Vimdiomas` by default) and your settings in `~/.config/vimdiomas/`. Delete those too if you really mean it. To remove the settings:
+
+```sh
+rm -rf ~/.config/vimdiomas
+```
