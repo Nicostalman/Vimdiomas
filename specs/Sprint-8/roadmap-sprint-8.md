@@ -21,7 +21,8 @@ interaction with the dev during the implementation step." Each milestone's
 not the whole of it.
 
 The first three milestones follow **dependency order**; M4 addresses the bugs
-recorded in the local, gitignored `bug-report.md` review of 2026-10-07:
+recorded in the local, gitignored `bug-report.md` review of 2026-10-07, and M5
+is a small wizard change the dev asked for on 2026-10-12 after reinstalling:
 
 - **The platform gate comes first** (M1). The install can only run commands
   for a platform it knows, so the app has to say what it supports, and refuse
@@ -33,6 +34,8 @@ recorded in the local, gitignored `bug-report.md` review of 2026-10-07:
 - **The install comes after both prerequisites** (M3).
 - **Source-file failures are contained** (M4), so a broken file cannot stop
   work on other notebooks or crash a browsing screen.
+- **Step 1 lists only what every install needs** (M5): the language rows
+  leave it, since the languages step is where they are checked and offered.
 
 Earlier sprints' vocabulary is used below without re-explaining it. **Step 1**
 is the wizard's *Dependencies* screen (`DependenciesScreen`). **Step 3** is its
@@ -217,6 +220,29 @@ one failed source and compiles the valid file; the CLI exits nonzero without a
 traceback, and the TUI stays open. Tag filtering still finds tags in the valid
 file in both Browse modes. Opening or previewing the bad source gives a
 user-visible error without ending the session. The full test suite passes.
+
+---
+
+## M5 · Language rows off the wizard's first step
+
+Found on 2026-10-12, reinstalling on the dev's own Mac: step 1 listed
+`[ Chinese] xeCJK` as *missing* with no *Install missing* button to fix it,
+because the button only covers what every install needs (M3). The row is
+informational at a step that cannot act on it; step 3 is where a language's
+own dependencies are checked and offered.
+
+**Deliverable.**
+
+- Step 1 (`DependenciesScreen`) no longer lists the checks that belong to a
+  language (xeCJK and the CJK font): the list, its spinner during Recheck, and
+  its column widths show only the `required` and `optional` rows.
+- Nothing else changes: *Next*, *Install missing*, step 3's check and offer,
+  Settings › Add a language, and `vimdiomas doctor` (which keeps listing them,
+  labelled with their language) behave as before.
+
+**Done when.** On a machine where xeCJK is missing, step 1 shows no xeCJK or
+CJK-font row, *Next* works, ticking Chinese at step 3 still offers to install
+xeCJK, and `vimdiomas doctor` still lists it. The full test suite passes.
 
 ---
 
