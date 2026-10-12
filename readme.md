@@ -57,6 +57,16 @@ export PATH="$HOME/.local/bin:$PATH"
 ```
 
 
+### Updating
+
+Pull the latest code and install it again. The installed copy doesn't follow the clone, so the second command is needed. Your settings and notebook stay as they are:
+
+```sh
+cd ~/.local/share/vimdiomas
+git pull
+.venv/bin/pip install .
+```
+
 ### Uninstalling
 
 Delete the clone and the command. Your notebook and your settings are separate, and survive:
