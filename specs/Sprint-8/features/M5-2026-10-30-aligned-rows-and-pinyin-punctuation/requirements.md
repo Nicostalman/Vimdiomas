@@ -148,6 +148,14 @@ vocabulary surface prints:
 Callers: `compile._render_table` (then `_curl_quotes`, then `_escape`) and
 `browse.hit_fields`.
 
+### 2.4 Browse's pinyin search
+
+`store.pinyin_key`, which Browse's content mode compares readings with, drops
+every `P*`/`S*` character as well as the digits, spaces, `:`, `'` and `’` it
+already drops. Without it, a reading guessed after M5 (`xiao3/zhong1/da4hao4`,
+key `xiao/zhong/dahao`) would stop matching the query `xiaozhong`. Found while
+implementing.
+
 ## 3. `design.md`
 
 - The bullet *A vocabulary row too long for the aligned columns is an
@@ -180,5 +188,7 @@ Callers: `compile._render_table` (then `_curl_quotes`, then `_escape`) and
   gloss at the same x.
 - `tests/test_tui_browse_screen.py`: a content hit on 小/中/大號 with
   `xiao3zhong1da4hao4` shows `xiǎo/zhōng/dàhào`.
+- `tests/test_store.py`: `pinyin_key("xiao3/zhong1/da4hao4")` is
+  `xiaozhongdahao`, and a content search for `xiaozhong` finds that entry.
 - `tests/test_tui_entry_screen.py`: typing 小/中/大號 fills the reading with
   `xiao3/zhong1/da4hao4`.

@@ -22,6 +22,8 @@ it. Section numbers (§) refer to [`requirements.md`](requirements.md).
 ## 3. Browse (§2.3)
 
 - `browse.hit_fields` through `display_reading`.
+- `store.pinyin_key` drops `P*`/`S*` characters (§2.4), with its tests in
+  `tests/test_store.py`.
 - `tests/test_tui_browse_screen.py`, and the Entry guess test in
   `tests/test_tui_entry_screen.py`.
 

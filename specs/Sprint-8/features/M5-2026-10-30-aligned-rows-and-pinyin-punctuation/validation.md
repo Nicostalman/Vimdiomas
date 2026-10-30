@@ -5,27 +5,28 @@ The acceptance bar. Section numbers (§) refer to
 
 ## 1. Automated
 
-- [ ] `uv run pytest` passes in full, integration tests included (they need
-      `xelatex` and `pdftotext`).
-- [ ] Pinyin tests: the §2.1 guesses; `to_tone_marks` keeps `/`, spaces and
+- [x] `uv run --extra dev pytest` passes in full, integration tests included
+      (they need `xelatex` and `pdftotext`): 1609 passed, 2026-10-30.
+- [x] Pinyin tests: the §2.1 guesses; `to_tone_marks` keeps `/`, spaces and
       `…` and drops `T`; `display_reading` weaves the word's `/` into a reading
       without any, leaves a reading with its own alone, appends leftover
       syllables, and gives `""` for `""`.
-- [ ] Compile tests: no `multicolumn` for the *Plástico* rows; one for a German
+- [x] Compile tests: no `multicolumn` for the *Plástico* rows; one for a German
       compound over the cap and one for a reading that leaves under 12em; the
       `\GlossColumn` column spec for both kinds; `\FitColumn` only for ordinary
       rows; 小/中/大號 renders `xiǎo/zhōng/dàhào` from `xiao3zhong1da4hao4`
       and from `xiao3/zhong1/da4hao4`.
-- [ ] Integration: the *Plástico* rows compile inside the margins, with one x
+- [x] Integration: the *Plástico* rows compile inside the margins, with one x
       for every row's pinyin and one for every gloss (`pdftotext -bbox`).
-- [ ] Browse shows `xiǎo/zhōng/dàhào` for the stored `xiao3zhong1da4hao4`;
+- [x] Browse shows `xiǎo/zhōng/dàhào` for the stored `xiao3zhong1da4hao4`;
       Entry guesses `xiao3/zhong1/da4hao4`.
 
 ## 2. By the agent, on the real PDF
 
-- [ ] The two screenshots' rows (*Plástico*, and 小/中/大號, 件, 條) compiled
+- [x] The two screenshots' rows (*Plástico*, and 小/中/大號, 件, 條) compiled
       to PNG with `pdftoppm` and looked at: three aligned columns, notes
-      wrapping inside the translation column, slashes in the pinyin.
+      wrapping inside the translation column, slashes in the pinyin. Also a German page: the long compound is still
+      an exception, and a long translation wraps in its column.
 
 ## 3. By hand (the dev)
 
