@@ -157,6 +157,32 @@ the translation column, which now wraps in place (see M5's
 Latin letters and digits in a word still contribute nothing to its guess, but
 its punctuation and symbols now do.
 
+### Settled in M5 (merged 2026-10-30, `912333e`)
+
+Full detail in
+[`../features/M5-2026-10-30-aligned-rows-and-pinyin-punctuation/requirements.md`](../features/M5-2026-10-30-aligned-rows-and-pinyin-punctuation/requirements.md).
+Every decision was the agent's: the dev asked for as few questions as possible
+and merged without reviewing them.
+
+| Decision | Rationale |
+| --- | --- |
+| **The translation column is a `p` column at the width the others leave, measured by LaTeX** (`\FitColumn`, `\GlossColumn` in the template) | It has to wrap, so it needs a width, and `\settowidth` uses the real fonts. `ltablex`/`xltabular` are not in BasicTeX. |
+| **Exceptions: a word over 12em, or word + reading leaving the translation under 12em (`MIN_GLOSS_EM`)** | The translation never makes one any more. |
+| **`guess` keeps `P*`/`S*` characters; `to_tone_marks` keeps everything between syllables but letters and digits** | `小/中/大號` → `xiao3/zhong1/da4hao4` → `xiǎo/zhōng/dàhào`; `T恤` is still `xù`. |
+| **`display_reading`: a reading without punctuation of its own takes the word's**, in the PDF and Browse | Fixes entries already on disk with no rewrite. |
+| **`store.pinyin_key` drops `P*`/`S*`** | Found while implementing: otherwise `xiaozhong` stops finding a new guess. |
+
+**Sprint 8 reopened for M5 after its close.** The close above was written
+while M5's branch was open, at the dev's correction that new work should open
+Sprint 9; the dev then chose to merge M5 as it was. So the closing note's
+"All four milestones" and the changelog's Sprint 8 section (M1–M4) do not
+list M5, and M6 is in the roadmap with no spec folder.
+
+**Merged with the by-hand pass not run.** At the dev's request ("merge as
+is"), M5 was merged with §3 of its `validation.md` (the dev's own Compile,
+Entry and Browse checks) and the §4 spec check unchecked. The automated suite
+(1609 passed) and the agent's look at the compiled PDFs (§2) were done.
+
 ### Sprint 8 closed (2026-10-30)
 
 **All four milestones landed**: M1 to M4 (PRs #1–#4). The app now runs only
