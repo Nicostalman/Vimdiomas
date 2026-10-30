@@ -1,5 +1,11 @@
 # Changelog
 
+## Sprint 8
+- M1 · Supported platforms
+- M2 · `doctor` checks the LaTeX packages
+- M3 · Install missing
+- M4 · Unreadable notebook files
+
 ## Sprint 7
 - M1 · Fix the skills
 - M2 · Curly-quote spacing

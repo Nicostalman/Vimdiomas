@@ -134,6 +134,23 @@ using readable files. The roadmap also includes the related single-file
 compile paths and Inspect Tree's MD preview, which read the same files without
 handling decode errors. M4 follows M3 and does not change its scope.
 
+### Sprint 8 closed (2026-10-30)
+
+**All four milestones landed**: M1 to M4 (PRs #1–#4). The app now runs only
+on macOS and Arch Linux, `doctor` checks the template's LaTeX packages, the
+wizard's step 1 installs what is missing, and an unreadable notebook file no
+longer stops a Compile or crashes a screen. Nothing was dropped.
+
+**Merged with by-hand validation not run:** M3's macOS VM pass, its by-hand
+Arch flow and the regression pass on the dev's Mac; M4's by-hand pass (see
+*Settled in M3* and *Settled in M4* above). The macOS install path is untested
+on a real bare Mac.
+
+**Carried forward:** nothing as a milestone. The dev's 2026-10-30 report from
+hand-testing (misaligned vocabulary rows, `/` missing from the pinyin, and
+editing the pinyin by hand) opens Sprint 9. The Postponed table below is what
+that sprint start should offer.
+
 ## Assumptions
 
 Taken as given by this sprint; not verified in code or stated in the roadmap.
