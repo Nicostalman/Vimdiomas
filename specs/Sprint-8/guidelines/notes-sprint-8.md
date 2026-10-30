@@ -134,6 +134,29 @@ using readable files. The roadmap also includes the related single-file
 compile paths and Inspect Tree's MD preview, which read the same files without
 handling decode errors. M4 follows M3 and does not change its scope.
 
+### M5 and M6 added after the dev's hand-testing, 2026-10-30
+
+The dev reported three things from real notebooks, with two screenshots, and
+asked for them to be specced with as few questions as possible. With M4 merged
+and the sprint not yet closed, they join Sprint 8 the way M4 did rather than
+opening Sprint 9:
+
+- **M5** fixes what the PDF shows: rows that leave the vocabulary table's
+  columns, and punctuation (`/`) missing from the pinyin.
+- **M6** makes the pinyin field editable by hand, reached by mouse and still
+  skipped by `tab`. It is specced in the roadmap and starts after M5.
+
+**M5 revisits Sprint 6 M6's exception rows** (Sprint 6 is frozen, so the
+change is restated here). Sprint 6 M6 took a row out of the table's columns
+when its word was wider than 12em *or* when it made the table wider than the
+text, a long gloss included. M5 keeps the first case and ends the second for
+the translation column, which now wraps in place (see M5's
+`requirements.md`).
+
+**M5 also revisits Sprint 6 M3's #19** ("Only hanzi contribute syllables"):
+Latin letters and digits in a word still contribute nothing to its guess, but
+its punctuation and symbols now do.
+
 ## Assumptions
 
 Taken as given by this sprint; not verified in code or stated in the roadmap.
