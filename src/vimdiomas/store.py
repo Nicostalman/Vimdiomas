@@ -288,8 +288,11 @@ def pinyin_key(text: str) -> str:
     ASCII digits, whitespace, `:`, `'` and `’` removed and `v` replaced by
     `u`. `ni3hao3` -> `nihao`, `nǐ hǎo` -> `nihao`, `lu:4`/`lv4` -> `lu`.
     Empty for a query with nothing but digits/punctuation (`3` -> ``), which
-    is what keeps a bare `3` from matching every reading."""
+    is what keeps a bare `3` from matching every reading. Any other
+    punctuation or symbol goes too (Sprint 8 M5), now that a reading can
+    hold one: `xiao3/zhong1` -> `xiaozhong`."""
     stripped = _PINYIN_NOISE_RE.sub("", fold(text))
+    stripped = "".join(ch for ch in stripped if unicodedata.category(ch)[0] not in "PS")
     return stripped.replace("v", "u")
 
 

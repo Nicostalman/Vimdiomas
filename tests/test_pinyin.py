@@ -1,6 +1,13 @@
 import pytest
 
-from vimdiomas.pinyin import from_tone_marks, guess, is_hanzi, to_tone_mark_syllables, to_tone_marks
+from vimdiomas.pinyin import (
+    display_reading,
+    from_tone_marks,
+    guess,
+    is_hanzi,
+    to_tone_mark_syllables,
+    to_tone_marks,
+)
 
 # (numbered input, expected tone-marked output, canonical numbered form)
 # `canonical` differs from the input when the input used a non-canonical
@@ -202,3 +209,59 @@ def test_guess_keeps_word_context_within_a_run_of_hanzi():
 )
 def test_a_value_already_on_disk_renders_as_if_freshly_guessed(stored, marked):
     assert to_tone_marks(stored) == marked
+
+
+# -- Sprint 8 M5: punctuation in the pinyin -----------------------------------
+
+
+@pytest.mark.parametrize(
+    "hanzi, numbered",
+    [
+        ("小/中/大號", "xiao3/zhong1/da4hao4"),
+        ("T恤", "xu4"),
+        ("3D打印", "da3yin4"),
+        ("...了", "...le5"),
+        ("你好！", "ni3hao3！"),
+        ("你 好", "ni3hao3"),
+        ("银行", "yin2hang2"),
+    ],
+)
+def test_guess_keeps_punctuation_and_symbols(hanzi, numbered):
+    assert guess(hanzi) == numbered
+
+
+@pytest.mark.parametrize(
+    "numbered, marked",
+    [
+        ("xiao3/zhong1/da4hao4", "xiǎo/zhōng/dàhào"),
+        ("ni3 hao3", "nǐ hǎo"),
+        ("…le5", "…le"),
+        ("Txu4", "xù"),
+        ("3Dda3yin4", "dǎyìn"),
+    ],
+)
+def test_to_tone_marks_keeps_what_is_not_a_letter_or_a_digit(numbered, marked):
+    assert to_tone_marks(numbered) == marked
+
+
+@pytest.mark.parametrize(
+    "word, reading, shown",
+    [
+        ("小/中/大號", "xiao3zhong1da4hao4", "xiǎo/zhōng/dàhào"),  # woven from the word
+        ("小/中/大號", "xiao3/zhong1/da4hao4", "xiǎo/zhōng/dàhào"),  # its own
+        ("小/中/大號", "xiao3-zhong1da4hao4", "xiǎo-zhōngdàhào"),  # its own wins
+        ("你", "ni3hao3", "nǐhǎo"),  # leftover syllables appended
+        ("T恤", "xu4", "xù"),  # letters lend nothing
+        ("小/中", "", ""),
+    ],
+)
+def test_display_reading(word, reading, shown):
+    assert display_reading(word, reading) == shown
+
+
+def test_display_reading_reports_an_unmarkable_syllable():
+    unsupported: list[str] = []
+    assert display_reading("呣/", "m2", unsupported=unsupported) == "ḿ/"
+    unsupported = []
+    display_reading("x", "zz3", unsupported=unsupported)
+    assert unsupported == ["zz3"]

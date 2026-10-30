@@ -1768,6 +1768,20 @@ async def test_autocompiling_a_syllabic_consonant_raises_nothing_and_records(
     ).compiled
 
 
+async def test_the_guess_keeps_the_words_slashes(source_tree):
+    """Sprint 8 M5: 小/中/大號 guesses to `xiao3/zhong1/da4hao4`."""
+    app = _HostApp(source_tree)
+    async with app.run_test() as pilot:
+        tree = pilot.app.screen.query_one("#entry-tree", EntryTree)
+        meat = _find_one(tree.root, "category", file_name="Food.md", category_name="Meat")
+        _select(tree, meat)
+        await pilot.pause()
+
+        pilot.app.screen.query_one("#word").value = "小/中/大號"
+        await pilot.pause()
+        assert pilot.app.screen.query_one("#reading").value == "xiao3/zhong1/da4hao4"
+
+
 # -- Sprint 6 M5: the form is built from the language's kind -------------------
 
 

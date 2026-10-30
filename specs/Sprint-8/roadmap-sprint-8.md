@@ -34,6 +34,14 @@ recorded in the local, gitignored `bug-report.md` review of 2026-10-07:
 - **Source-file failures are contained** (M4), so a broken file cannot stop
   work on other notebooks or crash a browsing screen.
 
+M5 and M6 were added on 2026-10-30, from the dev's hand-testing of real
+notebooks. Both are about the vocabulary table's pinyin and layout, and M6
+builds on M5's handling of punctuation in a reading:
+
+- **What the PDF shows is fixed first** (M5): rows that leave the table's
+  columns, and punctuation missing from the pinyin.
+- **Then the pinyin becomes editable by hand** (M6).
+
 Earlier sprints' vocabulary is used below without re-explaining it. **Step 1**
 is the wizard's *Dependencies* screen (`DependenciesScreen`). **Step 3** is its
 languages screen, where ticking Chinese already offers to install xeCJK and the
@@ -217,6 +225,78 @@ one failed source and compiles the valid file; the CLI exits nonzero without a
 traceback, and the TUI stays open. Tag filtering still finds tags in the valid
 file in both Browse modes. Opening or previewing the bad source gives a
 user-visible error without ending the session. The full test suite passes.
+
+---
+
+## M5 · Aligned rows and pinyin punctuation
+
+The dev, 2026-10-30, with two screenshots of a Chinese notebook: "i get these
+misalignments in some files", and "fix special characters like / that are not
+shown in the pinyin".
+
+**The bugs.** (1) A vocabulary row judged too long for the table's columns is an
+*exception* (Sprint 6 M6): it is set across the full width, outside the columns.
+So a row with a long note (瓶裝 … *(塑膠瓶裝的飲料: bebida embotellada en
+plástico)*) or a long word plus note (免洗餐具) starts its pinyin and gloss at
+different positions from its neighbours. (2) `pinyin.guess` keeps only the
+hanzi, and `to_tone_marks` keeps only syllables, so 小/中/大號 prints
+`xiǎozhōngdàhào`, with the slashes lost.
+
+**Deliverable.**
+
+- The vocabulary table's last column (the translation and its note) wraps
+  inside its own column, filling the width the other columns leave. A long
+  gloss or note no longer takes a row out of the columns. The other columns'
+  widths are measured by LaTeX itself, not estimated.
+- A row is an exception only when its *word* is too wide (Sprint 6 M6's 12em
+  cap, kept for German compounds), or when its word and reading together would
+  leave the translation column too narrow.
+- The pinyin keeps the word's punctuation and symbols: a new guess keeps them
+  (`xiao3/zhong1/da4hao4`), and an entry already on disk without them gets them
+  from its word when rendered, in the PDF and in Browse.
+- `design.md` restates the exception rule and the punctuation rule.
+
+**Done when.** The dev's screenshot rows, compiled, sit in three aligned columns
+with long notes wrapping inside the translation column; 小/中/大號 prints
+`xiǎo/zhōng/dàhào` from both a fresh entry and an existing one; German long
+compounds are still exceptions; the full test suite passes.
+
+---
+
+## M6 · Pinyin editable by hand
+
+The dev, 2026-10-30: "modifying pinyin by hand during the input. the tab should
+continue skipping the field but it should be accessible through clicking with
+the mouse."
+
+**Deliverable.**
+
+- Entry's reading field (Pinyin, Chinese only) is no longer disabled. A mouse
+  click focuses it and its text can be edited like any other field.
+- `tab` still skips it, from every field. `tab` pressed *in* it moves on to the
+  field after it (Translation), as if it had been reached in order.
+- Editing the word re-guesses the reading, replacing a hand edit; the field
+  follows the word until it is edited after the word's last change.
+- On Create, a hand-typed reading is normalised to the stored numbered form:
+  numbered syllables as they are; tone-marked or toneless syllables converted
+  (`xiǎo` → `xiao3`, `ma` → `ma5`); punctuation, symbols and spaces kept;
+  letters lowercased. A reading that cannot be read as pinyin (`xyz3`, a stray
+  digit) is refused with an error notification, nothing written and the form
+  kept.
+- `design.md`: a field `tab` skips can still be reached with the mouse; this is
+  the one such field.
+
+**Open for the spec conversation.**
+
+- Whether a hand edit should survive a later edit of the word (the deliverable
+  above proposes it does not).
+- Whether shift+hjkl or any key, besides the mouse, reaches the field.
+- The refusal's wording.
+
+**Done when.** On a Chinese notebook's Entry, a click on Pinyin focuses it, a
+hand edit is saved as numbered pinyin and printed tone-marked, `tab` never
+lands on the field, and an unreadable reading is refused without writing. A
+German notebook's Entry is unchanged. The full test suite passes.
 
 ---
 
