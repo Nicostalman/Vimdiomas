@@ -200,6 +200,30 @@ hand-testing (misaligned vocabulary rows, `/` missing from the pinyin, and
 editing the pinyin by hand) opens Sprint 9. The Postponed table below is what
 that sprint start should offer.
 
+### M7 added from a screenshot, 2026-11-07
+
+The dev sent a screenshot of Inspect Tree with the *New directory* dialog
+half under the PDF preview, and asked for a milestone "in this sprint". The
+closing note above says the 2026-10-30 items open Sprint 9, but M5 merged into
+Sprint 8 and M6 is still in its roadmap with no spec folder. So the sprint has
+an unstarted milestone, and the dev chose to add this one as **M7, after M6**,
+rather than open Sprint 9. M7 does not depend on M6 and is specced and built
+first. The changelog's Sprint 8 section (M1–M4) and the closing note are left
+as they are until the sprint is closed again.
+
+Open decisions, settled with the dev in M7's spec conversation (detail in
+[`../features/M7-2026-11-07-dialogs-over-the-pdf-preview/requirements.md`](../features/M7-2026-11-07-dialogs-over-the-pdf-preview/requirements.md)):
+
+| Decision | Rationale |
+| --- | --- |
+| **The page is hidden while any screen is over Inspect Tree, and redrawn when it closes** | Dev's choice, over cropping the dialog's rectangle out of the page. |
+| **Inspect Tree's notifications move to the bottom-left, inside the tree panel** | Dev's choice, over clearing the page while a toast shows, or leaving toasts out. |
+
+**M7 extends Sprint 5 M4's rule for clearing the page** (Sprint 5 is frozen,
+so it is restated here). Sprint 5 M4 cleared the kitty image when the preview
+switched to a message and when the screen was left. M7 also clears it when a
+screen opens on top, and redraws it when that screen closes.
+
 ## Assumptions
 
 Taken as given by this sprint; not verified in code or stated in the roadmap.
