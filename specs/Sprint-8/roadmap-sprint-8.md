@@ -275,14 +275,16 @@ the mouse."
   click focuses it and its text can be edited like any other field.
 - `tab` still skips it, from every field. `tab` pressed *in* it moves on to the
   field after it (Translation), as if it had been reached in order.
-- Editing the word re-guesses the reading, replacing a hand edit; the field
-  follows the word until it is edited after the word's last change.
+- The field follows the word until it is edited by hand. A hand edit is kept
+  when the word changes afterwards, until the field is emptied or the form is
+  cleared (settled 2026-11-07; first proposed the other way).
 - On Create, a hand-typed reading is normalised to the stored numbered form:
   numbered syllables as they are; tone-marked or toneless syllables converted
   (`xiǎo` → `xiao3`, `ma` → `ma5`); punctuation, symbols and spaces kept;
   letters lowercased. A reading that cannot be read as pinyin (`xyz3`, a stray
   digit) is refused with an error notification, nothing written and the form
-  kept.
+  kept. So is one whose syllable count differs from the word's hanzi count
+  (added 2026-11-07).
 - `design.md`: a field `tab` skips can still be reached with the mouse; this is
   the one such field.
 
@@ -292,6 +294,10 @@ the mouse."
   above proposes it does not).
 - Whether shift+hjkl or any key, besides the mouse, reaches the field.
 - The refusal's wording.
+
+All three were settled on 2026-11-07: the hand edit survives, mouse only, and
+`"<text>" isn't pinyin.` See M6's
+[`requirements.md`](features/M6-2026-11-07-pinyin-editable-by-hand/requirements.md).
 
 **Done when.** On a Chinese notebook's Entry, a click on Pinyin focuses it, a
 hand edit is saved as numbered pinyin and printed tone-marked, `tab` never

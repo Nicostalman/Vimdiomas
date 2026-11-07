@@ -157,6 +157,19 @@ the translation column, which now wraps in place (see M5's
 Latin letters and digits in a word still contribute nothing to its guess, but
 its punctuation and symbols now do.
 
+### M6's spec conversation, 2026-11-07
+
+Specced after M7 had been added, at the dev's request ("spec m6 as well").
+Detail in
+[`../features/M6-2026-11-07-pinyin-editable-by-hand/requirements.md`](../features/M6-2026-11-07-pinyin-editable-by-hand/requirements.md).
+
+| Decision | Rationale |
+| --- | --- |
+| **A hand edit survives later edits of the word**; emptying the field, or a cleared form, hands it back to the word | Dev's choice, reversing the roadmap's proposal. The emptying rule is the agent's. |
+| **Only the mouse reaches the Pinyin field** | Dev's choice. |
+| **Refusals: `"<text>" isn't pinyin.` and `"<text>" has N syllable(s) for M hanzi.`** | Dev's choice of the first wording and of refusing a syllable/hanzi mismatch; the second wording is the agent's. |
+| **Only a hand edit is normalised and checked**; an untouched guess saves as today | The agent's: nothing that saves today stops saving. |
+
 ### Settled in M5 (merged 2026-10-30, `912333e`)
 
 Full detail in
