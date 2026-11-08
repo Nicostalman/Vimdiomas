@@ -42,6 +42,10 @@ builds on M5's handling of punctuation in a reading:
   columns, and punctuation missing from the pinyin.
 - **Then the pinyin becomes editable by hand** (M6).
 
+M7 was added on 2026-11-07, from a screenshot of Inspect Tree: the *New
+directory* dialog opened underneath the PDF preview. It does not depend on M5
+or M6, so it can be built before M6.
+
 Earlier sprints' vocabulary is used below without re-explaining it. **Step 1**
 is the wizard's *Dependencies* screen (`DependenciesScreen`). **Step 3** is its
 languages screen, where ticking Chinese already offers to install xeCJK and the
@@ -303,6 +307,40 @@ All three were settled on 2026-11-07: the hand edit survives, mouse only, and
 hand edit is saved as numbered pinyin and printed tone-marked, `tab` never
 lands on the field, and an unreadable reading is refused without writing. A
 German notebook's Entry is unchanged. The full test suite passes.
+
+---
+
+## M7 · Dialogs over the PDF preview
+
+The dev, 2026-11-07, with a screenshot of Inspect Tree in PDF mode: the
+*New directory* dialog (`n`) is cut off where the preview pane begins, and the
+rendered page is drawn over the rest of it.
+
+**The bug.** The preview page is drawn with the kitty graphics protocol, which
+puts it on a layer above the terminal's text. Textual cannot draw anything
+over it. The image is cleared when the preview switches to a message and when
+the screen is left (Sprint 5 M4), but not when a screen opens on top. So every
+dialog Inspect Tree opens (`d`, `r`, `n`, `m`) is partly hidden behind the
+page. Notifications are shown bottom-right, which is over the preview pane, so
+they are hidden behind it too.
+
+**Deliverable.**
+
+- While any screen is open over Inspect Tree (its four dialogs, or anything
+  else pushed on top), the page is not drawn. It is cleared when the screen
+  opens and redrawn when it closes, for whatever the tree's cursor is on then.
+  A render that finishes, or a resize that happens, while a dialog is open
+  does not draw the page. The redraw happens when the dialog closes.
+- On Inspect Tree, notifications are shown bottom-left, over the tree panel,
+  which never shows an image. They never reach into the preview panel.
+- `design.md` states both rules in *Inspect Tree's PDF preview pane*.
+
+**Done when.** In a terminal that shows the page (kitty graphics), with a file's page in the preview: `n`, `r`, `m`
+and `d` each open a dialog that is fully visible, with no part of the page
+over it. Escape and confirm both bring the page back. *Deleted … Press u to
+undo.* and an error notification (`n` with an existing name) are fully
+visible at the bottom left. MD mode, the text preview and leaving the screen
+behave as before. The full test suite passes.
 
 ---
 
