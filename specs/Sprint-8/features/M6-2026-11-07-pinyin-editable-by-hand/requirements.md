@@ -255,8 +255,14 @@ tone-marked. Nothing changes in `compile.py` or `browse.py`.
 
 ## 7. Found during implementation
 
-Nothing yet. Anything that comes up while building this is written here as it
-happens.
+- **A numbered `m` is accepted** (§2.1). pypinyin's set holds that syllable
+  only tone-marked (`ḿ`), so its bare form is missing, and §2.1 as written
+  refused `m2`, which is what `guess` itself gives 呣. A numbered syllable's
+  letters are valid if they are in the set or in `_SYLLABIC_CONSONANTS`.
+- **One existing test had to change.** `validation.md` §1 says the existing
+  Entry tests pass unchanged, but `test_pinyin_field_is_disabled_and_skipped_by_tab`
+  asserted the `disabled` this milestone removes. It is now
+  `test_pinyin_field_is_skipped_by_tab`, without that assertion.
 
 ## Out of scope
 

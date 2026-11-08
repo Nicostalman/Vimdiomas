@@ -16,6 +16,7 @@ from vimdiomas.config import NotebookConfig
 from vimdiomas.input_method import switch_to
 from vimdiomas.models import Category, Deck, Entry, Subtitle
 from vimdiomas.parser import parse
+from vimdiomas.pinyin import is_hanzi, normalise, syllable_count
 from vimdiomas.store import DirNode, FileNode, SourceReadError, is_grammar, read_source, walk
 from vimdiomas.tui.screens.base import (
     FooterHint,
@@ -54,8 +55,9 @@ FIELD_ORDER = [
     "note",
 ]
 
-# The reading (pinyin, for Chinese) is auto-filled from the word and read-only;
-# it never takes part in tab navigation between fields.
+# The reading (pinyin, for Chinese) is auto-filled from the word and only
+# reached with the mouse (Sprint 8 M6): it never takes part in tab navigation
+# between fields.
 TAB_SKIP_IDS = {"reading"}
 
 FOOTER_HINT = (
@@ -192,6 +194,9 @@ class EntryScreen(PanelScreen):
         self.tree_root = config.tree_root
         self._active_target: NodeData | None = None
         self._dirty_files: set[Path] = set()
+        # The last reading guessed from the word; `_is_hand_edit` compares
+        # the field against it (Sprint 8 M6).
+        self._last_guess = ""
 
     def on_unmount(self) -> None:
         self._autocompile_dirty_files()
@@ -228,7 +233,7 @@ class EntryScreen(PanelScreen):
                     kind = self.config.kind
                     yield WordInput(placeholder=kind.word_label, id="word")
                     if kind.has_reading:
-                        yield TextField(placeholder=kind.reading_label, id="reading", disabled=True)
+                        yield TextField(placeholder=kind.reading_label, id="reading")
                     yield TextField(placeholder="Translation", id="translation")
                     yield TextField(placeholder="Note", id="note")
                     yield Button("Create", id="create-button")
@@ -261,6 +266,7 @@ class EntryScreen(PanelScreen):
         self.query_one("#category-name", Input).display = is_new_category
         for reading in self.query("#reading"):
             reading.display = not is_new_category
+            reading.disabled = not is_valid
         for field_id in ("word", "translation", "note"):
             field = self.query_one(f"#{field_id}", Input)
             field.display = not is_new_category
@@ -351,6 +357,11 @@ class EntryScreen(PanelScreen):
             chain = chain + ["create-button"]
         focused = self.focused
         focused_id = focused.id if focused is not None else None
+        if focused_id == "reading":
+            after_reading = FIELD_ORDER[FIELD_ORDER.index("reading") + 1 :]
+            next_id = next((id_ for id_ in after_reading if id_ in chain), "create-button")
+            self.query_one(f"#{next_id}").focus()
+            return
         if focused_id not in chain:
             return
         next_index = (chain.index(focused_id) + 1) % len(chain)
@@ -367,6 +378,7 @@ class EntryScreen(PanelScreen):
                 continue
             for field in self.query(f"#{field_id}"):
                 field.value = ""
+        self._last_guess = ""
 
     @on(Input.Changed, "#word")
     def _on_word_changed(self, event: Input.Changed) -> None:
@@ -378,13 +390,47 @@ class EntryScreen(PanelScreen):
         if guess_reading is None:
             return
         word = self.query_one("#word", Input).value
-        self.query_one("#reading", Input).value = guess_reading(word) if word else ""
+        follows_word = not self._is_hand_edit()
+        self._last_guess = guess_reading(word) if word else ""
+        if follows_word:
+            self.query_one("#reading", Input).value = self._last_guess
 
     def _read_reading(self) -> str:
         """The reading field's value; `""` for a kind that has none."""
         for reading in self.query("#reading"):
             return reading.value
         return ""
+
+    def _is_hand_edit(self) -> bool:
+        """Whether the reading is the user's own rather than the guess. An
+        empty field never is: it goes back to following the word."""
+        reading = self._read_reading()
+        return bool(reading) and reading != self._last_guess
+
+    def _reading_to_store(self, word: str) -> str | None:
+        """The reading to save with `word`. A hand edit is normalised and
+        checked first (Sprint 8 M6); one that fails is reported, the field
+        takes focus, and this gives `None`: the caller writes nothing and
+        leaves the form as it is."""
+        reading = self._read_reading()
+        if not self._is_hand_edit():
+            return reading
+        try:
+            normalised = normalise(reading)
+        except ValueError:
+            self._refuse_reading(f'"{reading}" isn\'t pinyin.')
+            return None
+        syllables = syllable_count(normalised)
+        hanzi = sum(map(is_hanzi, word))
+        if syllables != hanzi:
+            unit = "syllable" if syllables == 1 else "syllables"
+            self._refuse_reading(f'"{reading}" has {syllables} {unit} for {hanzi} hanzi.')
+            return None
+        return normalised
+
+    def _refuse_reading(self, message: str) -> None:
+        self.notify(message, severity="error", markup=False)
+        self.query_one("#reading", Input).focus()
 
     # -- create -----------------------------------------------------------
 
@@ -406,11 +452,14 @@ class EntryScreen(PanelScreen):
             return
 
         word = self.query_one("#word", Input).value
-        reading = self._read_reading()
         translation = self.query_one("#translation", Input).value
         note = self.query_one("#note", Input).value or None
 
         if not word:
+            return
+
+        reading = self._reading_to_store(word)
+        if reading is None:
             return
 
         entry = Entry(word=word, reading=reading, translation=translation, note=note)
@@ -447,13 +496,16 @@ class EntryScreen(PanelScreen):
         subtitle_value = subtitle_field.value
 
         word = self.query_one("#word", Input).value
-        reading = self._read_reading()
         translation = self.query_one("#translation", Input).value
         note = self.query_one("#note", Input).value or None
 
         if subtitle_value == NEW_SUBTITLE:
             subtitle_name = self.query_one("#subtitle-name", Input).value.strip()
             if not subtitle_name:
+                return
+
+            reading = self._reading_to_store(word) if word else ""
+            if reading is None:
                 return
 
             subtitle = next((s for s in category.subtitles if s.name == subtitle_name), None)
@@ -485,6 +537,10 @@ class EntryScreen(PanelScreen):
             return
 
         if not word:
+            return
+
+        reading = self._reading_to_store(word)
+        if reading is None:
             return
 
         entry = Entry(word=word, reading=reading, translation=translation, note=note)

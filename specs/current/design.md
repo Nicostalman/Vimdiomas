@@ -54,6 +54,9 @@ outside the shared classes.
 | `q` | Leave the screen | Leave the screen | Leave the screen, **except** in a text field, where it types |
 | `tab` | Focus the first panel's content — same as `enter` | Focus the panel's content — same as `enter` | Screen-specific (Entry: next field, wrapping; a screen with modes: toggle the mode — see *Screen modes*) |
 
+- **A field `tab` skips can still be reached with the mouse** (Sprint 8 M6).
+  Entry's Pinyin is the one such field: no key lands on it, a click does, and
+  `tab` from it moves on to Translation.
 - **The "On content" `esc` row assumes a `Panel` to climb to.** A menu's
   content has none — see *Flat menus*, below, where `esc` does nothing
   instead.
@@ -148,6 +151,16 @@ methods and the user will be able to choose the corresponding").
   the list is where the user needs every detail to tell two options apart,
   while the collapsed line already carries the field's own name in front of
   it and has a panel's width to fit in.
+
+### Entry's Pinyin field
+
+The Pinyin field follows the word until it is edited by hand (Sprint 8 M6). A
+hand edit is kept when the word changes afterwards, until the field is emptied
+or the form is cleared. On Create, a hand edit is stored as numbered pinyin
+(`xiǎo` is `xiao3`, `ma` is `ma5`; punctuation, symbols and spaces stay). It is
+refused, with nothing written and the form kept, when it isn't pinyin (`"xyz3"
+isn't pinyin.`) or when its syllables don't match the word's hanzi (`"ni3" has
+1 syllable for 2 hanzi.`). An untouched guess is saved as it is.
 
 ### Entry's grammar panel
 
