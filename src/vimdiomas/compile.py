@@ -13,7 +13,7 @@ from pathlib import Path
 from vimdiomas.languages import LanguageKind
 from vimdiomas.models import Category, Deck, Entry, Warning
 from vimdiomas.parser import parse
-from vimdiomas.pinyin import is_hanzi, to_tone_mark_syllables, to_tone_marks
+from vimdiomas.pinyin import display_reading, is_hanzi, to_tone_mark_syllables
 from vimdiomas.store import SourceReadError, is_grammar, read_source
 
 # Staleness cache for compile_all: maps each source .md's absolute path to a
@@ -35,18 +35,20 @@ STDERR_TAIL_LINES = 10
 GRAMMAR_PINYIN_GAP = "0.4em"
 GRAMMAR_ENTRY_GAP = "1.8em"
 
-# A vocabulary row that would not fit the table's aligned columns is an
-# *exception* (Sprint 6 M6, every kind): set across the full text width and
-# wrapped, with its continuation lines indented. The aligned first column is
-# as wide as its longest word, so one long German compound would otherwise push
-# every translation to the right, and a row too long for the page would run
-# past the margin. Widths are estimated, in em of the 12pt body, because the
-# table is sized by LaTeX and the decision has to be made here. First-pass
-# values, tuned by eye like the gaps above.
+# A vocabulary table's last column (translation and note) wraps inside its own
+# width, whatever the other columns leave (Sprint 8 M5). A row is an
+# *exception* (Sprint 6 M6, every kind), set across the full text width and
+# wrapped with its continuation lines indented, only when its word or reading
+# would crowd the others: the aligned first column is as wide as its longest
+# word, so one long German compound would otherwise push every translation to
+# the right. Widths are estimated, in em of the 12pt body, because the decision
+# has to be made here; the columns themselves are measured by LaTeX
+# (`\FitColumn`). First-pass values, tuned by eye like the gaps above.
 TEXT_WIDTH_EM = 39  # 6.5in at 12pt
 TABLE_PADDING_EM = 1  # \tabcolsep either side of the table
 COLUMN_GAP_EM = 2  # the `@{\hspace{2em}}` between columns
 WORD_CAP_EM = 12  # ten hanzi, or twenty Latin letters, in \Large
+MIN_GLOSS_EM = 12  # the narrowest the translation column may get
 LARGE_SCALE = 1.2  # \Large against the body size
 WIDE_CHAR_EM = 1.0  # East Asian wide and fullwidth characters
 NARROW_CHAR_EM = 0.5  # everything else, a little generous
@@ -188,28 +190,32 @@ def _exception_rows(widths: list[list[float]]) -> set[int]:
     `widths` is each row's cell widths in em, word first, as printed. A row is
     an exception when its word alone is wider than `WORD_CAP_EM`, which would
     drag every other row's second column along; and then, for as long as the
-    aligned rows make a table wider than the text, the row whose removal
-    narrows it most is made one too, so a table that fits keeps every row.
-    Only the row holding a column's widest cell can narrow the table, so only
-    those are tried.
+    aligned rows' word and reading leave the translation column narrower than
+    `MIN_GLOSS_EM`, the row whose removal narrows them most is made one too.
+    The translation itself never makes an exception: it wraps in its column
+    (Sprint 8 M5). Only the row holding a column's widest cell can narrow
+    the table, so only those are tried.
     """
     if not widths:
         return set()
     columns = len(widths[0])
-    available = TEXT_WIDTH_EM - TABLE_PADDING_EM - COLUMN_GAP_EM * (columns - 1)
+    fixed_columns = range(columns - 1)  # every column but the translation
+    available = (
+        TEXT_WIDTH_EM - TABLE_PADDING_EM - COLUMN_GAP_EM * (columns - 1) - MIN_GLOSS_EM
+    )
     exceptions = {index for index, row in enumerate(widths) if row[0] > WORD_CAP_EM}
 
     def table_width(skipping: set[int]) -> float:
         return sum(
             max((row[c] for index, row in enumerate(widths) if index not in skipping), default=0)
-            for c in range(columns)
+            for c in fixed_columns
         )
 
     while table_width(exceptions) > available:
         remaining = [index for index in range(len(widths)) if index not in exceptions]
         if not remaining:
             break
-        widest = {max(remaining, key=lambda index: widths[index][c]) for c in range(columns)}
+        widest = {max(remaining, key=lambda index: widths[index][c]) for c in fixed_columns}
         exceptions.add(
             min(widest, key=lambda index: (table_width(exceptions | {index}), -sum(widths[index])))
         )
@@ -226,11 +232,16 @@ def _render_table(
 
     A kind with a reading has three columns (word, reading, translation), one
     without has two: the same table minus the reading column (Sprint 6 M6).
-    A row too long for them (`_exception_rows`) is one cell across every
-    column instead, wrapping with a hanging indent."""
+    The translation column wraps, at whatever width the others leave, which
+    the block measures with `\\FitColumn` before the table starts (Sprint 8
+    M5). A row whose word or reading is too wide for them
+    (`_exception_rows`) is one cell across every column instead, wrapping
+    with a hanging indent."""
     columns = 3 if kind.has_reading else 2
-    column_spec = r"@{\hspace{2em}}".join("l" * columns)
-    lines = ["```{=latex}", rf"\begin{{longtable}}{{{column_spec}}}"]
+    fixed_lengths = [r"\WordColumn", r"\ReadingColumn"][: columns - 1]
+    column_spec = r"@{\hspace{2em}}".join(
+        ["l"] * (columns - 1) + [r">{\raggedright\arraybackslash}p{\GlossColumn}"]
+    )
 
     rows = []  # per entry: the cells as LaTeX, and as text for measuring
     for entry in map(_curl_entry, entries):
@@ -241,7 +252,9 @@ def _render_table(
         texts = [entry.word]
         cells = [f"{{\\Large {_escape(entry.word)}}}"]
         if kind.has_reading:
-            reading = to_tone_marks(entry.reading, unsupported=unsupported)
+            reading = _curl_quotes(
+                display_reading(entry.word, entry.reading, unsupported=unsupported)
+            )
             texts.append(reading)
             cells.append(_escape(reading))
         texts.append(translation_text)
@@ -253,6 +266,20 @@ def _render_table(
         for _, texts in rows
     ]
     exceptions = _exception_rows(widths)
+
+    lines = ["```{=latex}"]
+    lines.extend(rf"\setlength{{{length}}}{{0pt}}%" for length in fixed_lengths)
+    for index, (cells, _) in enumerate(rows):
+        if index not in exceptions:
+            lines.extend(
+                rf"\FitColumn{{{length}}}{{{cell}}}%" for length, cell in zip(fixed_lengths, cells)
+            )
+    gap = COLUMN_GAP_EM * (columns - 1)
+    lines.append(
+        rf"\setlength{{\GlossColumn}}{{\dimexpr\linewidth-2\tabcolsep"
+        rf"{''.join('-' + length for length in fixed_lengths)}-{gap}em\relax}}%"
+    )
+    lines.append(rf"\begin{{longtable}}{{{column_spec}}}")
 
     for index, (cells, texts) in enumerate(rows):
         if index in exceptions:

@@ -532,6 +532,13 @@ def test_hit_fields_chinese_entry_tone_marks_and_drops_empty_translation():
     assert hit_fields(hit, CHARACTER_PHONETIC) == ["你好", "nǐhǎo"]
 
 
+@pytest.mark.parametrize("reading", ["xiao3zhong1da4hao4", "xiao3/zhong1/da4hao4"])
+def test_hit_fields_chinese_reading_shows_the_words_slashes(reading):
+    """Sprint 8 M5: an entry stored before M5 takes them from its word."""
+    hit = _hit(word="小/中/大號", reading=reading, translation="talle")
+    assert hit_fields(hit, CHARACTER_PHONETIC) == ["小/中/大號", "xiǎo/zhōng/dàhào", "talle"]
+
+
 def test_hit_fields_alphabetical_entry_has_no_reading():
     hit = _hit(word="Haus", translation="house")
     assert hit_fields(hit, ALPHABETICAL) == ["Haus", "house"]

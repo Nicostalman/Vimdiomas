@@ -1,4 +1,4 @@
-# M5 · Language rows off the wizard's first step — plan
+# M8 · Language rows off the wizard's first step — plan
 
 Section numbers (§) refer to [`requirements.md`](requirements.md).
 

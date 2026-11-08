@@ -98,9 +98,54 @@ def to_tone_mark_syllables(numbered: str, *, unsupported: list[str] | None = Non
     return out
 
 
+def _is_punctuation(ch: str) -> bool:
+    """What a word lends its pinyin (Sprint 8 M5): punctuation and symbols,
+    Unicode categories P* and S* — `/`, `…`, `（`, `~`."""
+    return unicodedata.category(ch)[0] in "PS"
+
+
+def _kept_between_syllables(text: str) -> str:
+    """What a reading prints between its syllables (Sprint 8 M5): anything
+    but a letter or a digit. A stray letter (`Txu4`, from before #19) is
+    still dropped."""
+    return "".join(ch for ch in text if not ch.isalnum())
+
+
 def to_tone_marks(numbered: str, *, unsupported: list[str] | None = None) -> str:
-    """Numbered pinyin ("ni3hao3") to tone-marked pinyin ("nǐhǎo")."""
-    return "".join(to_tone_mark_syllables(numbered, unsupported=unsupported))
+    """Numbered pinyin ("ni3hao3") to tone-marked pinyin ("nǐhǎo"). The
+    punctuation, symbols and spaces between syllables are kept in place
+    (Sprint 8 M5): "xiao3/zhong1" is "xiǎo/zhōng"."""
+    out = []
+    position = 0
+    for match in _SYLLABLE_RE.finditer(numbered):
+        out.append(_kept_between_syllables(numbered[position : match.start()]))
+        out.extend(to_tone_mark_syllables(match.group(), unsupported=unsupported))
+        position = match.end()
+    out.append(_kept_between_syllables(numbered[position:]))
+    return "".join(out)
+
+
+def display_reading(word: str, reading: str, *, unsupported: list[str] | None = None) -> str:
+    """The tone-marked reading a vocabulary entry prints (Sprint 8 M5).
+
+    A reading with punctuation of its own is printed as it is. One without
+    takes the word's: walking the word, a hanzi takes the next syllable and
+    a punctuation mark or symbol is itself, so an entry stored before M5
+    (小/中/大號, `xiao3zhong1da4hao4`) prints `xiǎo/zhōng/dàhào`. Syllables
+    left over once the word ends are appended."""
+    if not reading:
+        return ""
+    if _kept_between_syllables(_SYLLABLE_RE.sub("", reading)):
+        return to_tone_marks(reading, unsupported=unsupported)
+    syllables = iter(to_tone_mark_syllables(reading, unsupported=unsupported))
+    out = []
+    for ch in word:
+        if is_hanzi(ch):
+            out.append(next(syllables, ""))
+        elif _is_punctuation(ch):
+            out.append(ch)
+    out.extend(syllables)
+    return "".join(out)
 
 
 @lru_cache(maxsize=1)
@@ -166,14 +211,82 @@ def from_tone_marks(marked: str) -> str:
     return "".join(out)
 
 
+_TONED_VOWELS = "".join(_CHAR_TO_TONE)
+
+# A run of pinyin characters in a hand-typed reading (Sprint 8 M6): ASCII
+# only for the letters and digits, so `ß`, `３` or a Kelvin sign is not one.
+_PINYIN_RUN_RE = re.compile(
+    f"(?:[a-zA-Z0-9üÜ{_TONED_VOWELS}{_TONED_VOWELS.upper()}]|(?<=[uU]):)+"
+)
+
+# One step through a lowercased run: the letters up to a digit, and the digit.
+_RUN_STEP_RE = re.compile(r"([^0-9]*)([0-9]?)")
+
+
+def _normalise_run(run: str) -> str:
+    out = []
+    position = 0
+    while position < len(run):
+        step = _RUN_STEP_RE.match(run, position)
+        letters, digit = step.groups()
+        position = step.end()
+        if not digit:
+            out.append(from_tone_marks(letters))
+            continue
+        bare = letters.replace("u:", "ü").replace("v", "ü")
+        # `m` is what `guess` gives 呣, but pypinyin's set only holds it
+        # tone-marked, as `ḿ`.
+        known = bare in _valid_syllables() or bare in _SYLLABIC_CONSONANTS
+        if digit not in "012345" or not known:
+            raise ValueError(f"not a numbered syllable: {letters + digit!r}")
+        out.append(bare.replace("ü", "u:") + digit)
+    return "".join(out)
+
+
+def normalise(text: str) -> str:
+    """A hand-typed reading to the stored numbered form (Sprint 8 M6):
+    "xiǎo/zhōng/dàhào" is "xiao3/zhong1/da4hao4", and "ma" is "ma5".
+
+    Punctuation, symbols and spaces between the syllables are kept as typed.
+    Raises `ValueError` for anything that cannot be read as pinyin."""
+    out = []
+    position = 0
+    for run in _PINYIN_RUN_RE.finditer(text):
+        out.append(_checked_between_runs(text[position : run.start()]))
+        out.append(_normalise_run(run.group().lower()))
+        position = run.end()
+    out.append(_checked_between_runs(text[position:]))
+    return "".join(out)
+
+
+def _checked_between_runs(text: str) -> str:
+    for ch in text:
+        if unicodedata.category(ch)[0] not in "PSZ":
+            raise ValueError(f"not pinyin: {ch!r}")
+    return text
+
+
+def syllable_count(numbered: str) -> int:
+    """How many numbered syllables a stored reading holds."""
+    return len(_SYLLABLE_RE.findall(numbered))
+
+
 def guess(hanzi: str) -> str:
     """Hanzi to numbered pinyin via pypinyin, e.g. guess("牛肉") -> "niu2rou4".
 
     Only hanzi contribute syllables (Sprint 6 M3, #19): guess("T恤") is
     "xu4", not "Txu4". Each run of consecutive hanzi goes to pypinyin whole,
-    so a word's reading still comes from its context (银行 is yin2hang2)."""
-    return "".join(
-        group[0]
-        for run in _HANZI_RUN_RE.findall(hanzi)
-        for group in _pypinyin(run, style=Style.TONE3, neutral_tone_with_five=True)
-    )
+    so a word's reading still comes from its context (银行 is yin2hang2).
+    Punctuation and symbols are kept in place (Sprint 8 M5):
+    guess("小/中/大號") is "xiao3/zhong1/da4hao4"."""
+    out = []
+    position = 0
+    for run in _HANZI_RUN_RE.finditer(hanzi):
+        out.extend(filter(_is_punctuation, hanzi[position : run.start()]))
+        out.extend(
+            group[0]
+            for group in _pypinyin(run.group(), style=Style.TONE3, neutral_tone_with_five=True)
+        )
+        position = run.end()
+    out.extend(filter(_is_punctuation, hanzi[position:]))
+    return "".join(out)

@@ -1,4 +1,4 @@
-# M5 · Language rows off the wizard's first step — validation
+# M8 · Language rows off the wizard's first step — validation
 
 The acceptance bar. Section numbers (§) refer to
 [`requirements.md`](requirements.md).

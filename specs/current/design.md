@@ -54,6 +54,9 @@ outside the shared classes.
 | `q` | Leave the screen | Leave the screen | Leave the screen, **except** in a text field, where it types |
 | `tab` | Focus the first panel's content — same as `enter` | Focus the panel's content — same as `enter` | Screen-specific (Entry: next field, wrapping; a screen with modes: toggle the mode — see *Screen modes*) |
 
+- **A field `tab` skips can still be reached with the mouse** (Sprint 8 M6).
+  Entry's Pinyin is the one such field: no key lands on it, a click does, and
+  `tab` from it moves on to Translation.
 - **The "On content" `esc` row assumes a `Panel` to climb to.** A menu's
   content has none — see *Flat menus*, below, where `esc` does nothing
   instead.
@@ -148,6 +151,16 @@ methods and the user will be able to choose the corresponding").
   the list is where the user needs every detail to tell two options apart,
   while the collapsed line already carries the field's own name in front of
   it and has a panel's width to fit in.
+
+### Entry's Pinyin field
+
+The Pinyin field follows the word until it is edited by hand (Sprint 8 M6). A
+hand edit is kept when the word changes afterwards, until the field is emptied
+or the form is cleared. On Create, a hand edit is stored as numbered pinyin
+(`xiǎo` is `xiao3`, `ma` is `ma5`; punctuation, symbols and spaces stay). It is
+refused, with nothing written and the form kept, when it isn't pinyin (`"xyz3"
+isn't pinyin.`) or when its syllables don't match the word's hanzi (`"ni3" has
+1 syllable for 2 hanzi.`). An untouched guess is saved as it is.
 
 ### Entry's grammar panel
 
@@ -874,14 +887,26 @@ TUI-only conventions above.
   gap before the next entry. `GRAMMAR_PINYIN_GAP` keeps its name: for German
   it is the gap after the word line. Chinese's PDFs are unchanged, pixel for
   pixel.
-- **A vocabulary row too long for the aligned columns is an exception, in
-  every language** (Sprint 6 M6). A word wider than 12em in `\Large` (ten
-  hanzi, or twenty Latin letters), or whichever row makes the table wider than
-  the text, is not put in the columns: it is set across the full width, the
-  word in `\Large`, then the other cells after the usual 2em gap, and if that
-  does not fit one line it wraps with the continuation lines indented by
-  1.5em, so it reads as the same entry. The other rows are sized without it,
-  so one German compound does not push every translation to the right. Widths
-  are estimated by one function shared by every kind (`compile.py`), and a
-  table that fits is rendered exactly as before. A grammar entry's head line
-  can break between units, so a long Chinese phrase wraps.
+- **A vocabulary table's translation column wraps in place** (Sprint 8 M5). The
+  last column (translation and its italic note) is as wide as the other
+  columns leave, measured by LaTeX itself (`\FitColumn` in the template), and a
+  long gloss or note wraps inside it, its continuation lines starting at the
+  column's left edge. Every row's pinyin and gloss start where their
+  neighbours' do.
+- **A vocabulary row whose word or reading is too wide is an exception, in
+  every language** (Sprint 6 M6, narrowed in Sprint 8 M5). A word wider than
+  12em in `\Large` (ten hanzi, or twenty Latin letters), or whichever row's
+  word and reading would leave the translation column under 12em, is not put
+  in the columns: it is set across the full width, the word in `\Large`, then
+  the other cells after the usual 2em gap, and if that does not fit one line it
+  wraps with the continuation lines indented by 1.5em, so it reads as the same
+  entry. The other rows are sized without it, so one German compound does not
+  push every translation to the right. A long translation never makes an
+  exception. The decision is made on widths estimated by one function shared
+  by every kind (`compile.py`). A grammar entry's head line can break between
+  units, so a long Chinese phrase wraps.
+- **The pinyin keeps the word's punctuation and symbols** (Sprint 8 M5): 小/中/大號
+  prints `xiǎo/zhōng/dàhào`, in the PDF and in Browse. A reading that holds
+  punctuation of its own is printed as it is; one that holds none (written
+  before M5) takes the word's. Latin letters and digits in a word lend the
+  pinyin nothing (T恤 is `xù`).

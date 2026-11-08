@@ -21,8 +21,7 @@ interaction with the dev during the implementation step." Each milestone's
 not the whole of it.
 
 The first three milestones follow **dependency order**; M4 addresses the bugs
-recorded in the local, gitignored `bug-report.md` review of 2026-10-07, and M5
-is a small wizard change the dev asked for on 2026-10-12 after reinstalling:
+recorded in the local, gitignored `bug-report.md` review of 2026-10-07:
 
 - **The platform gate comes first** (M1). The install can only run commands
   for a platform it knows, so the app has to say what it supports, and refuse
@@ -36,6 +35,22 @@ is a small wizard change the dev asked for on 2026-10-12 after reinstalling:
   work on other notebooks or crash a browsing screen.
 - **Step 1 lists only what every install needs** (M5): the language rows
   leave it, since the languages step is where they are checked and offered.
+
+M5 and M6 were added on 2026-10-30, from the dev's hand-testing of real
+notebooks. Both are about the vocabulary table's pinyin and layout, and M6
+builds on M5's handling of punctuation in a reading:
+
+- **What the PDF shows is fixed first** (M5): rows that leave the table's
+  columns, and punctuation missing from the pinyin.
+- **Then the pinyin becomes editable by hand** (M6).
+
+M7 was added on 2026-11-07, from a screenshot of Inspect Tree: the *New
+directory* dialog opened underneath the PDF preview. It does not depend on M5
+or M6, so it can be built before M6.
+
+M8 is a small wizard change the dev asked for on 2026-10-12 after reinstalling.
+It was specced as M5 on a branch of its own, and took the next free number when
+that branch was merged on 2026-11-08. It does not depend on M5, M6 or M7.
 
 Earlier sprints' vocabulary is used below without re-explaining it. **Step 1**
 is the wizard's *Dependencies* screen (`DependenciesScreen`). **Step 3** is its
@@ -223,7 +238,119 @@ user-visible error without ending the session. The full test suite passes.
 
 ---
 
-## M5 · Language rows off the wizard's first step
+## M5 · Aligned rows and pinyin punctuation
+
+The dev, 2026-10-30, with two screenshots of a Chinese notebook: "i get these
+misalignments in some files", and "fix special characters like / that are not
+shown in the pinyin".
+
+**The bugs.** (1) A vocabulary row judged too long for the table's columns is an
+*exception* (Sprint 6 M6): it is set across the full width, outside the columns.
+So a row with a long note (瓶裝 … *(塑膠瓶裝的飲料: bebida embotellada en
+plástico)*) or a long word plus note (免洗餐具) starts its pinyin and gloss at
+different positions from its neighbours. (2) `pinyin.guess` keeps only the
+hanzi, and `to_tone_marks` keeps only syllables, so 小/中/大號 prints
+`xiǎozhōngdàhào`, with the slashes lost.
+
+**Deliverable.**
+
+- The vocabulary table's last column (the translation and its note) wraps
+  inside its own column, filling the width the other columns leave. A long
+  gloss or note no longer takes a row out of the columns. The other columns'
+  widths are measured by LaTeX itself, not estimated.
+- A row is an exception only when its *word* is too wide (Sprint 6 M6's 12em
+  cap, kept for German compounds), or when its word and reading together would
+  leave the translation column too narrow.
+- The pinyin keeps the word's punctuation and symbols: a new guess keeps them
+  (`xiao3/zhong1/da4hao4`), and an entry already on disk without them gets them
+  from its word when rendered, in the PDF and in Browse.
+- `design.md` restates the exception rule and the punctuation rule.
+
+**Done when.** The dev's screenshot rows, compiled, sit in three aligned columns
+with long notes wrapping inside the translation column; 小/中/大號 prints
+`xiǎo/zhōng/dàhào` from both a fresh entry and an existing one; German long
+compounds are still exceptions; the full test suite passes.
+
+---
+
+## M6 · Pinyin editable by hand
+
+The dev, 2026-10-30: "modifying pinyin by hand during the input. the tab should
+continue skipping the field but it should be accessible through clicking with
+the mouse."
+
+**Deliverable.**
+
+- Entry's reading field (Pinyin, Chinese only) is no longer disabled. A mouse
+  click focuses it and its text can be edited like any other field.
+- `tab` still skips it, from every field. `tab` pressed *in* it moves on to the
+  field after it (Translation), as if it had been reached in order.
+- The field follows the word until it is edited by hand. A hand edit is kept
+  when the word changes afterwards, until the field is emptied or the form is
+  cleared (settled 2026-11-07; first proposed the other way).
+- On Create, a hand-typed reading is normalised to the stored numbered form:
+  numbered syllables as they are; tone-marked or toneless syllables converted
+  (`xiǎo` → `xiao3`, `ma` → `ma5`); punctuation, symbols and spaces kept;
+  letters lowercased. A reading that cannot be read as pinyin (`xyz3`, a stray
+  digit) is refused with an error notification, nothing written and the form
+  kept. So is one whose syllable count differs from the word's hanzi count
+  (added 2026-11-07).
+- `design.md`: a field `tab` skips can still be reached with the mouse; this is
+  the one such field.
+
+**Open for the spec conversation.**
+
+- Whether a hand edit should survive a later edit of the word (the deliverable
+  above proposes it does not).
+- Whether shift+hjkl or any key, besides the mouse, reaches the field.
+- The refusal's wording.
+
+All three were settled on 2026-11-07: the hand edit survives, mouse only, and
+`"<text>" isn't pinyin.` See M6's
+[`requirements.md`](features/M6-2026-11-07-pinyin-editable-by-hand/requirements.md).
+
+**Done when.** On a Chinese notebook's Entry, a click on Pinyin focuses it, a
+hand edit is saved as numbered pinyin and printed tone-marked, `tab` never
+lands on the field, and an unreadable reading is refused without writing. A
+German notebook's Entry is unchanged. The full test suite passes.
+
+---
+
+## M7 · Dialogs over the PDF preview
+
+The dev, 2026-11-07, with a screenshot of Inspect Tree in PDF mode: the
+*New directory* dialog (`n`) is cut off where the preview pane begins, and the
+rendered page is drawn over the rest of it.
+
+**The bug.** The preview page is drawn with the kitty graphics protocol, which
+puts it on a layer above the terminal's text. Textual cannot draw anything
+over it. The image is cleared when the preview switches to a message and when
+the screen is left (Sprint 5 M4), but not when a screen opens on top. So every
+dialog Inspect Tree opens (`d`, `r`, `n`, `m`) is partly hidden behind the
+page. Notifications are shown bottom-right, which is over the preview pane, so
+they are hidden behind it too.
+
+**Deliverable.**
+
+- While any screen is open over Inspect Tree (its four dialogs, or anything
+  else pushed on top), the page is not drawn. It is cleared when the screen
+  opens and redrawn when it closes, for whatever the tree's cursor is on then.
+  A render that finishes, or a resize that happens, while a dialog is open
+  does not draw the page. The redraw happens when the dialog closes.
+- On Inspect Tree, notifications are shown bottom-left, over the tree panel,
+  which never shows an image. They never reach into the preview panel.
+- `design.md` states both rules in *Inspect Tree's PDF preview pane*.
+
+**Done when.** In a terminal that shows the page (kitty graphics), with a file's page in the preview: `n`, `r`, `m`
+and `d` each open a dialog that is fully visible, with no part of the page
+over it. Escape and confirm both bring the page back. *Deleted … Press u to
+undo.* and an error notification (`n` with an existing name) are fully
+visible at the bottom left. MD mode, the text preview and leaving the screen
+behave as before. The full test suite passes.
+
+---
+
+## M8 · Language rows off the wizard's first step
 
 Found on 2026-10-12, reinstalling on the dev's own Mac: step 1 listed
 `[ Chinese] xeCJK` as *missing* with no *Install missing* button to fix it,

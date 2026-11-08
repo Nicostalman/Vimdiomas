@@ -134,7 +134,111 @@ using readable files. The roadmap also includes the related single-file
 compile paths and Inspect Tree's MD preview, which read the same files without
 handling decode errors. M4 follows M3 and does not change its scope.
 
-### M5 added after reinstalling, 2026-10-12
+### M5 and M6 added after the dev's hand-testing, 2026-10-30
+
+The dev reported three things from real notebooks, with two screenshots, and
+asked for them to be specced with as few questions as possible. With M4 merged
+and the sprint not yet closed, they join Sprint 8 the way M4 did rather than
+opening Sprint 9:
+
+- **M5** fixes what the PDF shows: rows that leave the vocabulary table's
+  columns, and punctuation (`/`) missing from the pinyin.
+- **M6** makes the pinyin field editable by hand, reached by mouse and still
+  skipped by `tab`. It is specced in the roadmap and starts after M5.
+
+**M5 revisits Sprint 6 M6's exception rows** (Sprint 6 is frozen, so the
+change is restated here). Sprint 6 M6 took a row out of the table's columns
+when its word was wider than 12em *or* when it made the table wider than the
+text, a long gloss included. M5 keeps the first case and ends the second for
+the translation column, which now wraps in place (see M5's
+`requirements.md`).
+
+**M5 also revisits Sprint 6 M3's #19** ("Only hanzi contribute syllables"):
+Latin letters and digits in a word still contribute nothing to its guess, but
+its punctuation and symbols now do.
+
+### Settled in M6 (merged 2026-11-08, `621cd69`)
+
+Specced after M7 had been added, at the dev's request ("spec m6 as well").
+Detail in
+[`../features/M6-2026-11-07-pinyin-editable-by-hand/requirements.md`](../features/M6-2026-11-07-pinyin-editable-by-hand/requirements.md).
+
+| Decision | Rationale |
+| --- | --- |
+| **A hand edit survives later edits of the word**; emptying the field, or a cleared form, hands it back to the word | Dev's choice, reversing the roadmap's proposal. The emptying rule is the agent's. |
+| **Only the mouse reaches the Pinyin field** | Dev's choice. |
+| **Refusals: `"<text>" isn't pinyin.` and `"<text>" has N syllable(s) for M hanzi.`** | Dev's choice of the first wording and of refusing a syllable/hanzi mismatch; the second wording is the agent's. |
+| **Only a hand edit is normalised and checked**; an untouched guess saves as today | The agent's: nothing that saves today stops saving. |
+| **A numbered `m` is accepted** | Found while building it: pypinyin's set holds that syllable only tone-marked, so the spec as written refused `m2`, the app's own guess for 呣. |
+
+### Settled in M5 (merged 2026-10-30, `912333e`)
+
+Full detail in
+[`../features/M5-2026-10-30-aligned-rows-and-pinyin-punctuation/requirements.md`](../features/M5-2026-10-30-aligned-rows-and-pinyin-punctuation/requirements.md).
+Every decision was the agent's: the dev asked for as few questions as possible
+and merged without reviewing them.
+
+| Decision | Rationale |
+| --- | --- |
+| **The translation column is a `p` column at the width the others leave, measured by LaTeX** (`\FitColumn`, `\GlossColumn` in the template) | It has to wrap, so it needs a width, and `\settowidth` uses the real fonts. `ltablex`/`xltabular` are not in BasicTeX. |
+| **Exceptions: a word over 12em, or word + reading leaving the translation under 12em (`MIN_GLOSS_EM`)** | The translation never makes one any more. |
+| **`guess` keeps `P*`/`S*` characters; `to_tone_marks` keeps everything between syllables but letters and digits** | `小/中/大號` → `xiao3/zhong1/da4hao4` → `xiǎo/zhōng/dàhào`; `T恤` is still `xù`. |
+| **`display_reading`: a reading without punctuation of its own takes the word's**, in the PDF and Browse | Fixes entries already on disk with no rewrite. |
+| **`store.pinyin_key` drops `P*`/`S*`** | Found while implementing: otherwise `xiaozhong` stops finding a new guess. |
+
+**Sprint 8 reopened for M5 after its close.** The close above was written
+while M5's branch was open, at the dev's correction that new work should open
+Sprint 9; the dev then chose to merge M5 as it was. So the closing note's
+"All four milestones" and the changelog's Sprint 8 section (M1–M4) do not
+list M5, and M6 is in the roadmap with no spec folder.
+
+**Merged with the by-hand pass not run.** At the dev's request ("merge as
+is"), M5 was merged with §3 of its `validation.md` (the dev's own Compile,
+Entry and Browse checks) and the §4 spec check unchecked. The automated suite
+(1609 passed) and the agent's look at the compiled PDFs (§2) were done.
+
+### Sprint 8 closed (2026-10-30)
+
+**All four milestones landed**: M1 to M4 (PRs #1–#4). The app now runs only
+on macOS and Arch Linux, `doctor` checks the template's LaTeX packages, the
+wizard's step 1 installs what is missing, and an unreadable notebook file no
+longer stops a Compile or crashes a screen. Nothing was dropped.
+
+**Merged with by-hand validation not run:** M3's macOS VM pass, its by-hand
+Arch flow and the regression pass on the dev's Mac; M4's by-hand pass (see
+*Settled in M3* and *Settled in M4* above). The macOS install path is untested
+on a real bare Mac.
+
+**Carried forward:** nothing as a milestone. The dev's 2026-10-30 report from
+hand-testing (misaligned vocabulary rows, `/` missing from the pinyin, and
+editing the pinyin by hand) opens Sprint 9. The Postponed table below is what
+that sprint start should offer.
+
+### M7 added from a screenshot, 2026-11-07
+
+The dev sent a screenshot of Inspect Tree with the *New directory* dialog
+half under the PDF preview, and asked for a milestone "in this sprint". The
+closing note above says the 2026-10-30 items open Sprint 9, but M5 merged into
+Sprint 8 and M6 is still in its roadmap with no spec folder. So the sprint has
+an unstarted milestone, and the dev chose to add this one as **M7, after M6**,
+rather than open Sprint 9. M7 does not depend on M6 and is specced and built
+first. The changelog's Sprint 8 section (M1–M4) and the closing note are left
+as they are until the sprint is closed again.
+
+Open decisions, settled with the dev in M7's spec conversation (detail in
+[`../features/M7-2026-11-07-dialogs-over-the-pdf-preview/requirements.md`](../features/M7-2026-11-07-dialogs-over-the-pdf-preview/requirements.md)):
+
+| Decision | Rationale |
+| --- | --- |
+| **The page is hidden while any screen is over Inspect Tree, and redrawn when it closes** | Dev's choice, over cropping the dialog's rectangle out of the page. |
+| **Inspect Tree's notifications move to the bottom-left, inside the tree panel** | Dev's choice, over clearing the page while a toast shows, or leaving toasts out. |
+
+**M7 extends Sprint 5 M4's rule for clearing the page** (Sprint 5 is frozen,
+so it is restated here). Sprint 5 M4 cleared the kitty image when the preview
+switched to a message and when the screen was left. M7 also clears it when a
+screen opens on top, and redraws it when that screen closes.
+
+### M8 added after reinstalling, 2026-10-12
 
 The dev reinstalled on their own Mac (after removing the dependencies) and saw
 step 1 list xeCJK as *missing* with no button to install it. Their request:
@@ -145,7 +249,7 @@ step 1 list xeCJK as *missing* with no button to install it. Their request:
 | **Both language rows leave step 1**, xeCJK and the CJK font | Dev's choice, over dropping only xeCJK or showing them once a language is chosen. They are the same kind of row, and step 1 comes before the language step. |
 | **`vimdiomas doctor` keeps listing them** | Recommended by the agent, accepted. `doctor` is the full report and has no language step after it. |
 | **Everything else is unchanged**: *Next*, *Install missing*, step 3's check and offer, Settings › Add a language | Dev's choice, over adding a note on step 1 in place of the rows. |
-| **Spec'd as M5 of this sprint**, not left for Sprint 9 | Dev's choice, over closing Sprint 8 first. The sprint's close waits for it. |
+| **Spec'd in this sprint**, not left for Sprint 9 (as M5; renumbered M8 on 2026-11-08, when its branch was merged after another M5 had landed) | Dev's choice, over closing Sprint 8 first. The sprint's close waits for it. |
 
 ## Assumptions
 

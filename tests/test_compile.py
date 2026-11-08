@@ -18,6 +18,11 @@ from vimdiomas.languages import ALPHABETICAL, CHARACTER_PHONETIC
 from vimdiomas.models import Category, Deck, Entry, Subtitle
 from vimdiomas.parser import parse
 
+# Sprint 8 M5: the last column wraps at the width the others leave.
+_GLOSS_COLUMN = r">{\raggedright\arraybackslash}p{\GlossColumn}"
+_THREE_COLUMNS = r"\begin{longtable}{l@{\hspace{2em}}l@{\hspace{2em}}" + _GLOSS_COLUMN + "}"
+_TWO_COLUMNS = r"\begin{longtable}{l@{\hspace{2em}}" + _GLOSS_COLUMN + "}"
+
 
 def test_render_markdown_table_structure_and_tone_marks():
     deck = Deck(
@@ -39,7 +44,7 @@ def test_render_markdown_table_structure_and_tone_marks():
     assert "## Meat" in markdown
     assert "{\\Large 牛肉} & niúròu & beef \\\\" in markdown
     assert "```{=latex}" in markdown
-    assert r"\begin{longtable}{l@{\hspace{2em}}l@{\hspace{2em}}l}" in markdown
+    assert _THREE_COLUMNS in markdown
     assert "Hanzi" not in markdown
     assert "Pinyin" not in markdown
     assert "\\toprule" not in markdown
@@ -754,15 +759,22 @@ def test_yaml_title(title, rendered):
 
 def test_ordinary_output_is_unchanged():
     """No punctuation in the title or headings: the intermediate markdown is
-    exactly what it was before M3, so ordinary files keep their stamps."""
+    exactly this, so ordinary files keep their stamps. (Sprint 8 M5 changed
+    it once, for the measured columns.)"""
     deck = Deck(
         title="Food",
         categories=[Category(name="Meat", entries=[Entry("牛肉", "niu2rou4", "beef")])],
     )
     assert render_markdown(deck, kind=CHARACTER_PHONETIC) == (
         "---\ntitle: Food\n---\n\n## Meat\n\n```{=latex}\n"
-        "\\begin{longtable}{l@{\\hspace{2em}}l@{\\hspace{2em}}l}\n"
-        "{\\Large 牛肉} & niúròu & beef \\\\\n\\end{longtable}\n```\n"
+        "\\setlength{\\WordColumn}{0pt}%\n"
+        "\\setlength{\\ReadingColumn}{0pt}%\n"
+        "\\FitColumn{\\WordColumn}{{\\Large 牛肉}}%\n"
+        "\\FitColumn{\\ReadingColumn}{niúròu}%\n"
+        "\\setlength{\\GlossColumn}"
+        "{\\dimexpr\\linewidth-2\\tabcolsep-\\WordColumn-\\ReadingColumn-4em\\relax}%\n"
+        + _THREE_COLUMNS
+        + "\n{\\Large 牛肉} & niúròu & beef \\\\\n\\end{longtable}\n```\n"
     )
 
 
@@ -1014,7 +1026,7 @@ def _german_deck():
 def test_alphabetical_vocabulary_is_a_two_column_table_with_no_reading():
     markdown = render_markdown(_german_deck(), kind=ALPHABETICAL)
 
-    assert r"\begin{longtable}{l@{\hspace{2em}}l}" in markdown
+    assert _TWO_COLUMNS in markdown
     assert r"{\Large Haus} & house \\" in markdown
     assert r"{\Large der Apfel} & the apple \textit{(masculine)} \\" in markdown
     assert "HanziPinyin" not in markdown
@@ -1024,7 +1036,7 @@ def test_alphabetical_vocabulary_is_a_two_column_table_with_no_reading():
 def test_chinese_vocabulary_keeps_its_three_column_table():
     deck = Deck(title="Food", uncategorized=[Entry("牛肉", "niu2rou4", "beef")])
     markdown = render_markdown(deck, kind=CHARACTER_PHONETIC)
-    assert r"\begin{longtable}{l@{\hspace{2em}}l@{\hspace{2em}}l}" in markdown
+    assert _THREE_COLUMNS in markdown
     assert r"{\Large 牛肉} & niúròu & beef \\" in markdown
 
 
@@ -1180,23 +1192,27 @@ def test_exception_rows_takes_a_word_wider_than_the_cap_even_if_the_table_fits()
     assert compile_module._exception_rows(widths) == {1}
 
 
-def test_exception_rows_takes_the_row_that_makes_the_table_too_wide_and_only_it():
-    # Available: 39 - 1 - 2 = 36em for two columns.
-    widths = [[3.0, 10.0], [4.0, 34.0], [5.0, 12.0]]  # 5 + 34 > 36
+def test_exception_rows_never_takes_a_row_for_its_translation():
+    # Sprint 8 M5: the translation wraps in its own column.
+    assert compile_module._exception_rows([[3.0, 34.0], [4.0, 80.0]]) == set()
+    assert compile_module._exception_rows([[3.0, 5.0, 80.0]]) == set()
+
+
+def test_exception_rows_takes_the_row_whose_reading_crowds_the_translation_and_only_it():
+    # Available for word + reading: 39 - 1 - 4 - 12 = 22em.
+    widths = [[3.0, 5.0, 10.0], [4.0, 20.0, 5.0], [5.0, 6.0, 30.0]]  # 5 + 20 > 22
     assert compile_module._exception_rows(widths) == {1}
 
 
-def test_exception_rows_takes_as_few_rows_as_make_the_table_fit():
-    widths = [[10.0, 5.0], [3.0, 30.0], [11.0, 6.0]]  # 11 + 30 = 41 > 36
-    assert compile_module._exception_rows(widths) == {1}
-    widths = [[10.0, 25.0], [3.0, 30.0], [11.0, 20.0]]  # still 11 + 30 > 36
+def test_exception_rows_takes_as_few_rows_as_leave_the_translation_its_width():
+    widths = [[10.0, 5.0, 1.0], [3.0, 15.0, 1.0], [11.0, 6.0, 1.0]]  # 11 + 15 = 26 > 22
     assert compile_module._exception_rows(widths) == {1}
 
 
 def test_exception_rows_uses_the_three_column_budget_for_a_reading():
-    # 39 - 1 - 4 = 34em: 9 + 10 + 15 fits, 9 + 10 + 15.1 does not.
-    assert compile_module._exception_rows([[9.0, 10.0, 15.0]]) == set()
-    assert compile_module._exception_rows([[9.0, 10.0, 15.1]]) == {0}
+    # 39 - 1 - 4 - 12 = 22em: 9 + 13 fits, 9 + 13.1 does not.
+    assert compile_module._exception_rows([[9.0, 13.0, 50.0]]) == set()
+    assert compile_module._exception_rows([[9.0, 13.1, 50.0]]) == {0}
 
 
 def test_width_counts_wide_characters_as_a_full_em():
@@ -1221,16 +1237,16 @@ def test_a_long_word_is_an_exception_row_across_both_columns():
     assert "&" not in exception_line  # one cell
 
 
-def test_a_long_translation_is_an_exception_row_even_with_a_short_word():
+def test_a_long_translation_stays_in_its_column():
     markdown = _german_table(Entry("Haus", "", "a" * 80), Entry("Tisch", "", "table"))
-    assert markdown.count("multicolumn") == 1
+    assert "multicolumn" not in markdown
+    assert r"{\Large Haus} & " + "a" * 80 + r" \\" in markdown
     assert r"{\Large Tisch} & table \\" in markdown
 
 
-def test_the_note_counts_towards_a_rows_length():
-    translation = "a" * 60
-    assert "multicolumn" not in _german_table(Entry("Haus", "", translation))
-    assert "multicolumn" in _german_table(Entry("Haus", "", translation, note="a" * 20))
+def test_a_long_note_stays_in_its_column():
+    markdown = _german_table(Entry("Haus", "", "a" * 60, note="a" * 40))
+    assert "multicolumn" not in markdown
 
 
 def test_the_exception_row_keeps_its_note_and_escapes_its_text():
@@ -1242,21 +1258,67 @@ def test_exception_rows_sit_among_ordinary_ones_in_order():
     markdown = _german_table(
         Entry("Haus", "", "house"), Entry(_LONG_WORD, "", "cap"), Entry("Tisch", "", "table")
     )
-    assert markdown.index("Haus") < markdown.index(_LONG_WORD) < markdown.index("Tisch")
+    table = markdown[markdown.index(r"\begin{longtable}") :]
+    assert table.index("Haus") < table.index(_LONG_WORD) < table.index("Tisch")
     assert markdown.count("multicolumn") == 1
 
 
-def test_a_long_chinese_row_is_an_exception_spanning_three_columns():
-    long_gloss = "a very long gloss " * 6
+def test_only_ordinary_rows_are_measured():
+    markdown = _german_table(Entry("Haus", "", "house"), Entry(_LONG_WORD, "", "cap"))
+    assert r"\FitColumn{\WordColumn}{{\Large Haus}}%" in markdown
+    assert "FitColumn{\\WordColumn}{{\\Large " + _LONG_WORD not in markdown
+    assert r"\ReadingColumn" not in markdown
+    assert (
+        r"\setlength{\GlossColumn}{\dimexpr\linewidth-2\tabcolsep-\WordColumn-2em\relax}%"
+        in markdown
+    )
+
+
+def test_a_long_chinese_gloss_stays_in_its_column():
+    long_gloss = ("a very long gloss " * 6).strip()
     markdown = _table(
         CHARACTER_PHONETIC,
         Entry("你好", "ni3hao3", "hello"),
-        Entry("天气", "tian1qi4", long_gloss.strip()),
+        Entry("天气", "tian1qi4", long_gloss),
+    )
+    assert "multicolumn" not in markdown
+    assert r"{\Large 天气} & tiānqì & " + long_gloss + r" \\" in markdown
+
+
+def test_a_chinese_row_whose_reading_crowds_the_gloss_is_an_exception_spanning_three_columns():
+    markdown = _table(
+        CHARACTER_PHONETIC,
+        Entry("你好", "ni3hao3", "hello"),
+        Entry("天气", "zhuang1" * 8, "weather"),
     )
     assert markdown.count("multicolumn") == 1
     assert _SPAN_3 in markdown
-    assert r"{\Large 天气}\hspace{2em}tiānqì\hspace{2em}" + long_gloss.strip() in markdown
+    assert r"{\Large 天气}\hspace{2em}" + "zhuāng" * 8 + r"\hspace{2em}weather}" in markdown
     assert r"{\Large 你好} & nǐhǎo & hello \\" in markdown
+
+
+# The dev's screenshot rows, 2026-10-30 (Sprint 8 M5).
+_PLASTICO = [
+    Entry("塑膠", "su4jiao1", "plástico"),
+    Entry("瓶裝", "ping2zhuang1", "embotellado", note="塑膠瓶裝的飲料: bebida embotellada en plástico"),
+    Entry("垃圾", "la1ji1", "basura", note="垃圾 en china"),
+    Entry("免洗餐具", "mian3xi3can1ju4", "cubiertos descartables", note="免洗: no debe ser lavado"),
+    Entry("小/中/大號", "xiao3zhong1da4hao4", "talle s/m/l"),
+    Entry("條", "tiao2", "cosas alargadas, prendas", note="clasificador"),
+]
+
+
+def test_the_screenshot_rows_all_sit_in_the_columns():
+    markdown = _table(CHARACTER_PHONETIC, *_PLASTICO)
+    assert "multicolumn" not in markdown
+    assert markdown.count(r"\FitColumn{\WordColumn}") == len(_PLASTICO)
+    assert markdown.count(r"\FitColumn{\ReadingColumn}") == len(_PLASTICO)
+
+
+@pytest.mark.parametrize("reading", ["xiao3zhong1da4hao4", "xiao3/zhong1/da4hao4"])
+def test_a_words_slashes_are_in_its_pinyin(reading):
+    markdown = _table(CHARACTER_PHONETIC, Entry("小/中/大號", reading, "talle s/m/l"))
+    assert r"{\Large 小/中/大號} & xiǎo/zhōng/dàhào & talle s/m/l \\" in markdown
 
 
 def test_a_chinese_exception_row_with_no_reading_adds_no_empty_gap():
@@ -1320,6 +1382,45 @@ def test_a_long_chinese_gloss_compiles_for_real_inside_the_margins(tmp_path):
         "天气\ttian1qi4\t" + "a gloss long enough to run past the right margin, " * 3 + "end\n",
     )
     assert "tiānqì" in _pdf_text(notebook_file)
+    assert _right_edge_pt(notebook_file) <= _INSIDE_THE_MARGIN
+
+
+def _word_left_edges_pt(pdf_path):
+    """Each word's left edge on the first page, by its text, from poppler."""
+    if shutil.which("pdftotext") is None:
+        pytest.skip("pdftotext (poppler) not installed")
+    boxes = subprocess.run(
+        ["pdftotext", "-bbox", "-f", "1", "-l", "1", str(pdf_path), "-"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    return {
+        word: float(x_min)
+        for x_min, word in re.findall(r'<word xMin="([0-9.]+)"[^>]*>([^<]+)</word>', boxes)
+    }
+
+
+@pytest.mark.integration
+def test_the_screenshot_rows_compile_for_real_in_aligned_columns(tmp_path):
+    """Sprint 8 M5: every row's pinyin starts at one x and every gloss at
+    another, long notes included, all inside the margins."""
+    rows = "".join(
+        f"{entry.word}\t{entry.reading}\t{entry.translation}\n"
+        + (f"    *{entry.note}*\n" if entry.note else "")
+        for entry in _PLASTICO
+    )
+    notebook_file = _compile_real(tmp_path, CHARACTER_PHONETIC, "# Lang\n\n" + rows)
+    edges = _word_left_edges_pt(notebook_file)
+    pinyin = ["sùjiāo", "píngzhuāng", "lājī", "miǎnxǐcānjù", "xiǎo/zhōng/dàhào", "tiáo"]
+    glosses = ["plástico", "embotellado", "basura", "cubiertos", "talle", "cosas"]
+    assert max(edges[w] for w in pinyin) - min(edges[w] for w in pinyin) < 0.5
+    assert max(edges[w] for w in glosses) - min(edges[w] for w in glosses) < 0.5
+    # The long notes wrap, and their second lines start in the gloss column
+    # too: more words start there than there are glosses.
+    gloss_x = edges["plástico"]
+    starts = [word for word, x in edges.items() if abs(x - gloss_x) < 0.5]
+    assert len(starts) > len(glosses)
     assert _right_edge_pt(notebook_file) <= _INSIDE_THE_MARGIN
 
 
@@ -1498,7 +1599,8 @@ def test_an_entrys_straight_quotes_are_curled_in_every_field(kind, grammar):
     markdown = render_markdown(deck, kind=kind, grammar=grammar)
     assert '"' not in markdown
     assert r"\textit{(“b” c)}" in markdown
-    assert markdown.count("a “b” c") == (1 if grammar and kind.has_reading else 2)
+    # A vocabulary word is also measured (Sprint 8 M5): one more occurrence.
+    assert markdown.count("a “b” c") == (1 if grammar and kind.has_reading else 2 if grammar else 3)
 
 
 def test_a_grammar_word_is_curled_whole_before_it_is_split_into_units():

@@ -93,6 +93,19 @@ $endif$
   \parbox[t]{\linewidth}{\raggedright\Large #1\par}%
 }
 
+% Vocabulary tables (Sprint 8 M5): the last column (translation and note)
+% wraps inside its own column, so it needs a width, which is whatever the
+% other columns leave. They are measured here, with the real fonts: each
+% table's raw block zeroes \WordColumn and \ReadingColumn, calls \FitColumn
+% once per cell of an ordinary row, then sets \GlossColumn from them.
+\newlength{\WordColumn}
+\newlength{\ReadingColumn}
+\newlength{\GlossColumn}
+\newlength{\CellWidth}
+\newcommand{\FitColumn}[2]{%
+  \settowidth{\CellWidth}{#2}%
+  \ifdim\CellWidth>#1\setlength{#1}{\CellWidth}\fi}
+
 % longtable centers itself by default (\LTleft/\LTright both default to \fill);
 % left-align it against the text margin instead.
 \setlength{\LTleft}{0pt}

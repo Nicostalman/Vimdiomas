@@ -10,7 +10,7 @@ from textual.widgets import Input, OptionList, Static
 from textual.widgets.option_list import Option
 
 from vimdiomas.languages import LanguageKind
-from vimdiomas.pinyin import to_tone_marks
+from vimdiomas.pinyin import display_reading
 from vimdiomas.platform import open_file
 from vimdiomas.store import ContentHit, ContentIndex, fuzzy, search_content, tag_index
 from vimdiomas.tui.screens.base import FooterHint, VimOptionList, literal, open_source_pdf
@@ -70,7 +70,7 @@ def hit_fields(hit: ContentHit, kind: LanguageKind) -> list[str]:
     if hit.kind in ("category", "subtitle"):
         return [hit.name]
     if kind.has_reading:
-        fields = [hit.word, to_tone_marks(hit.reading), hit.translation]
+        fields = [hit.word, display_reading(hit.word, hit.reading), hit.translation]
     else:
         fields = [hit.word, hit.translation]
     return [field for field in fields if field]

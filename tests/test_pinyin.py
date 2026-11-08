@@ -1,6 +1,20 @@
+from pathlib import Path
+
 import pytest
 
-from vimdiomas.pinyin import from_tone_marks, guess, is_hanzi, to_tone_mark_syllables, to_tone_marks
+from vimdiomas.languages import CHARACTER_PHONETIC
+from vimdiomas.parser import parse
+from vimdiomas.pinyin import (
+    _SYLLABLE_RE,
+    display_reading,
+    from_tone_marks,
+    guess,
+    is_hanzi,
+    normalise,
+    syllable_count,
+    to_tone_mark_syllables,
+    to_tone_marks,
+)
 
 # (numbered input, expected tone-marked output, canonical numbered form)
 # `canonical` differs from the input when the input used a non-canonical
@@ -202,3 +216,157 @@ def test_guess_keeps_word_context_within_a_run_of_hanzi():
 )
 def test_a_value_already_on_disk_renders_as_if_freshly_guessed(stored, marked):
     assert to_tone_marks(stored) == marked
+
+
+# -- Sprint 8 M5: punctuation in the pinyin -----------------------------------
+
+
+@pytest.mark.parametrize(
+    "hanzi, numbered",
+    [
+        ("小/中/大號", "xiao3/zhong1/da4hao4"),
+        ("T恤", "xu4"),
+        ("3D打印", "da3yin4"),
+        ("...了", "...le5"),
+        ("你好！", "ni3hao3！"),
+        ("你 好", "ni3hao3"),
+        ("银行", "yin2hang2"),
+    ],
+)
+def test_guess_keeps_punctuation_and_symbols(hanzi, numbered):
+    assert guess(hanzi) == numbered
+
+
+@pytest.mark.parametrize(
+    "numbered, marked",
+    [
+        ("xiao3/zhong1/da4hao4", "xiǎo/zhōng/dàhào"),
+        ("ni3 hao3", "nǐ hǎo"),
+        ("…le5", "…le"),
+        ("Txu4", "xù"),
+        ("3Dda3yin4", "dǎyìn"),
+    ],
+)
+def test_to_tone_marks_keeps_what_is_not_a_letter_or_a_digit(numbered, marked):
+    assert to_tone_marks(numbered) == marked
+
+
+@pytest.mark.parametrize(
+    "word, reading, shown",
+    [
+        ("小/中/大號", "xiao3zhong1da4hao4", "xiǎo/zhōng/dàhào"),  # woven from the word
+        ("小/中/大號", "xiao3/zhong1/da4hao4", "xiǎo/zhōng/dàhào"),  # its own
+        ("小/中/大號", "xiao3-zhong1da4hao4", "xiǎo-zhōngdàhào"),  # its own wins
+        ("你", "ni3hao3", "nǐhǎo"),  # leftover syllables appended
+        ("T恤", "xu4", "xù"),  # letters lend nothing
+        ("小/中", "", ""),
+    ],
+)
+def test_display_reading(word, reading, shown):
+    assert display_reading(word, reading) == shown
+
+
+def test_display_reading_reports_an_unmarkable_syllable():
+    unsupported: list[str] = []
+    assert display_reading("呣/", "m2", unsupported=unsupported) == "ḿ/"
+    unsupported = []
+    display_reading("x", "zz3", unsupported=unsupported)
+    assert unsupported == ["zz3"]
+
+
+# -- Sprint 8 M6: normalising a hand-typed reading ------------------------------
+
+
+@pytest.mark.parametrize(
+    "typed, stored",
+    [
+        ("xiao3/zhong1/da4hao4", "xiao3/zhong1/da4hao4"),
+        ("xiǎo/zhōng/dàhào", "xiao3/zhong1/da4hao4"),
+        ("Xing2", "xing2"),
+        ("XǏNG", "xing3"),
+        ("ma", "ma5"),
+        ("lv4", "lu:4"),
+        ("lü4", "lu:4"),
+        ("lu:4", "lu:4"),
+        ("lǜ", "lu:4"),
+        ("ni3 hǎo", "ni3 hao3"),
+        ("ni3hǎo", "ni3hao3"),
+        ("nǐhǎo", "ni3hao3"),
+        ("yin2hang2", "yin2hang2"),
+        ("ma0", "ma0"),
+        ("n2", "n2"),
+        ("m2", "m2"),
+        ("xī'ān", "xi1'an1"),
+        ("", ""),
+        ("/ …", "/ …"),
+    ],
+)
+def test_normalise(typed, stored):
+    assert normalise(typed) == stored
+
+
+@pytest.mark.parametrize(
+    "typed",
+    [
+        "xyz3",
+        "xyz",
+        "ni6",
+        "xiǎo3",
+        "3",
+        "3ni",
+        "ni33",
+        "nihao3",
+        "你",
+        "ni3你",
+        "ß",
+        "я",
+        "ç",
+        "３",
+        "\u212a",  # a Kelvin sign, which lowercases to `k`
+    ],
+)
+def test_normalise_refuses(typed):
+    with pytest.raises(ValueError):
+        normalise(typed)
+
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def _fixture_readings():
+    readings = set()
+    for path in sorted(FIXTURES.glob("*.md")):
+        deck, _ = parse(
+            path.read_text(encoding="utf-8"),
+            path.stem,
+            kind=CHARACTER_PHONETIC,
+            grammar=path.stem == "Grammar",
+        )
+        entries = list(deck.uncategorized)
+        for category in deck.categories:
+            entries += category.entries
+            for subtitle in category.subtitles:
+                entries += subtitle.entries
+        readings |= {entry.reading for entry in entries if entry.reading}
+    return sorted(readings)
+
+
+def _syllables(numbered):
+    return [(letters, "5" if tone == "0" else tone) for letters, tone in _SYLLABLE_RE.findall(numbered)]
+
+
+def test_fixtures_hold_readings_to_round_trip():
+    assert _fixture_readings()
+
+
+@pytest.mark.parametrize("reading", _fixture_readings())
+def test_normalise_round_trips_a_stored_reading(reading):
+    assert _syllables(normalise(to_tone_marks(reading))) == _syllables(reading)
+
+
+@pytest.mark.parametrize(
+    "numbered, count",
+    [("xiao3/zhong1/da4hao4", 4), ("ma5", 1), ("", 0), ("T", 0)],
+)
+def test_syllable_count(numbered, count):
+    assert syllable_count(numbered) == count

@@ -327,6 +327,8 @@ def test_fold(text, expected):
         ("lv4", "lu"),
         ("Xi'an", "xian"),
         ("3", ""),
+        ("xiao3/zhong1/da4hao4", "xiaozhongdahao"),  # Sprint 8 M5
+        ("xiǎo/zhōng/dàhào", "xiaozhongdahao"),
     ],
 )
 def test_pinyin_key(text, expected):
@@ -395,6 +397,18 @@ def test_search_content_partial_hanzi(tmp_path):
 def test_search_content_pinyin_variants_find_the_reading(tmp_path, query):
     hits = _search(_chinese_tree(tmp_path), query, kind=CHARACTER_PHONETIC)
     assert any(h.word == "你好" for h in hits)
+
+
+def test_search_content_pinyin_ignores_a_readings_slashes(tmp_path):
+    """Sprint 8 M5: a guess keeps the word's `/`, and a query without it
+    still finds the entry."""
+    root = tmp_path
+    (root / "Ropa.md").write_text(
+        "# Ropa\n\n小/中/大號\txiao3/zhong1/da4hao4\ttalle\n", encoding="utf-8"
+    )
+    for query in ("xiaozhong", "xiǎo/zhōng", "dahao"):
+        hits = _search(root, query, kind=CHARACTER_PHONETIC)
+        assert [h.word for h in hits] == ["小/中/大號"]
 
 
 def test_search_content_translation_finds_entry(tmp_path):

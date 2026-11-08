@@ -1,4 +1,4 @@
-# M5 · Language rows off the wizard's first step — requirements
+# M8 · Language rows off the wizard's first step — requirements
 
 ## Anchor: the roadmap
 
@@ -75,7 +75,7 @@ Settled with the dev in the spec conversation, 2026-10-12.
 - `design.md`, *A language's missing dependencies*: the sentence "The wizard
   lists them at step 1 labelled with the language that needs them
   (`[ Chinese] xeCJK`, …) and they never block *Next* there" becomes: step 1
-  does not list them (Sprint 8 M5); step 3 checks them when such a language is
+  does not list them (Sprint 8 M8); step 3 checks them when such a language is
   ticked and Settings › Add a language when one is added; `vimdiomas doctor`
   still lists them with the language as the label.
 - `stack.md`: nothing. `doctor.label`'s doc string and `needed_for` stay true.
