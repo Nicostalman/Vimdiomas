@@ -157,7 +157,7 @@ the translation column, which now wraps in place (see M5's
 Latin letters and digits in a word still contribute nothing to its guess, but
 its punctuation and symbols now do.
 
-### M6's spec conversation, 2026-11-07
+### Settled in M6 (merged 2026-11-08, `621cd69`)
 
 Specced after M7 had been added, at the dev's request ("spec m6 as well").
 Detail in
@@ -169,6 +169,7 @@ Detail in
 | **Only the mouse reaches the Pinyin field** | Dev's choice. |
 | **Refusals: `"<text>" isn't pinyin.` and `"<text>" has N syllable(s) for M hanzi.`** | Dev's choice of the first wording and of refusing a syllable/hanzi mismatch; the second wording is the agent's. |
 | **Only a hand edit is normalised and checked**; an untouched guess saves as today | The agent's: nothing that saves today stops saving. |
+| **A numbered `m` is accepted** | Found while building it: pypinyin's set holds that syllable only tone-marked, so the spec as written refused `m2`, the app's own guess for 呣. |
 
 ### Settled in M5 (merged 2026-10-30, `912333e`)
 
