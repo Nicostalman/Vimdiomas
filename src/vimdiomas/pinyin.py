@@ -211,6 +211,66 @@ def from_tone_marks(marked: str) -> str:
     return "".join(out)
 
 
+_TONED_VOWELS = "".join(_CHAR_TO_TONE)
+
+# A run of pinyin characters in a hand-typed reading (Sprint 8 M6): ASCII
+# only for the letters and digits, so `ß`, `３` or a Kelvin sign is not one.
+_PINYIN_RUN_RE = re.compile(
+    f"(?:[a-zA-Z0-9üÜ{_TONED_VOWELS}{_TONED_VOWELS.upper()}]|(?<=[uU]):)+"
+)
+
+# One step through a lowercased run: the letters up to a digit, and the digit.
+_RUN_STEP_RE = re.compile(r"([^0-9]*)([0-9]?)")
+
+
+def _normalise_run(run: str) -> str:
+    out = []
+    position = 0
+    while position < len(run):
+        step = _RUN_STEP_RE.match(run, position)
+        letters, digit = step.groups()
+        position = step.end()
+        if not digit:
+            out.append(from_tone_marks(letters))
+            continue
+        bare = letters.replace("u:", "ü").replace("v", "ü")
+        # `m` is what `guess` gives 呣, but pypinyin's set only holds it
+        # tone-marked, as `ḿ`.
+        known = bare in _valid_syllables() or bare in _SYLLABIC_CONSONANTS
+        if digit not in "012345" or not known:
+            raise ValueError(f"not a numbered syllable: {letters + digit!r}")
+        out.append(bare.replace("ü", "u:") + digit)
+    return "".join(out)
+
+
+def normalise(text: str) -> str:
+    """A hand-typed reading to the stored numbered form (Sprint 8 M6):
+    "xiǎo/zhōng/dàhào" is "xiao3/zhong1/da4hao4", and "ma" is "ma5".
+
+    Punctuation, symbols and spaces between the syllables are kept as typed.
+    Raises `ValueError` for anything that cannot be read as pinyin."""
+    out = []
+    position = 0
+    for run in _PINYIN_RUN_RE.finditer(text):
+        out.append(_checked_between_runs(text[position : run.start()]))
+        out.append(_normalise_run(run.group().lower()))
+        position = run.end()
+    out.append(_checked_between_runs(text[position:]))
+    return "".join(out)
+
+
+def _checked_between_runs(text: str) -> str:
+    for ch in text:
+        if unicodedata.category(ch)[0] not in "PSZ":
+            raise ValueError(f"not pinyin: {ch!r}")
+    return text
+
+
+def syllable_count(numbered: str) -> int:
+    """How many numbered syllables a stored reading holds."""
+    return len(_SYLLABLE_RE.findall(numbered))
+
+
 def guess(hanzi: str) -> str:
     """Hanzi to numbered pinyin via pypinyin, e.g. guess("牛肉") -> "niu2rou4".
 

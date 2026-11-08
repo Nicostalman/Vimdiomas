@@ -686,7 +686,7 @@ async def test_hanzi_prefills_pinyin(source_tree):
         assert pinyin.value == "niu2rou4"
 
 
-async def test_pinyin_field_is_disabled_and_skipped_by_tab(source_tree):
+async def test_pinyin_field_is_skipped_by_tab(source_tree):
     app = _HostApp(source_tree)
     async with app.run_test() as pilot:
         tree = pilot.app.screen.query_one("#entry-tree", EntryTree)
@@ -695,8 +695,6 @@ async def test_pinyin_field_is_disabled_and_skipped_by_tab(source_tree):
         await pilot.pause()
         await pilot.press("enter")
         await pilot.pause()
-
-        assert pilot.app.screen.query_one("#reading", Input).disabled is True
 
         await pilot.press("tab")
         await pilot.pause()
@@ -2273,3 +2271,291 @@ async def test_selecting_a_grammar_category_in_a_file_that_went_bad_leaves_no_su
         assert pilot.app.screen._read_category(conjunctions.data) is None
         assert pilot.app.screen.query_one("#subtitle", SelectField).choices == []
         assert all(m.startswith("G.md could not be read: ") for m in _errors(pilot))
+
+
+# -- Sprint 8 M6: Pinyin editable by hand --------------------------------------
+
+
+async def _on_meat(pilot):
+    tree = pilot.app.screen.query_one("#entry-tree", EntryTree)
+    _select(tree, _find_one(tree.root, "category", file_name="Food.md", category_name="Meat"))
+    await pilot.pause()
+
+
+def _value(pilot, field_id):
+    return pilot.app.screen.query_one(f"#{field_id}", Input).value
+
+
+async def _fill(pilot, **values):
+    """Set fields in the order given, letting the word's guess land between
+    them, as typing would."""
+    for field_id, value in values.items():
+        pilot.app.screen.query_one(f"#{field_id}", Input).value = value
+        await pilot.pause()
+
+
+async def test_pinyin_is_enabled_only_with_a_target_and_a_click_focuses_it(source_tree):
+    app = _HostApp(source_tree)
+    async with app.run_test() as pilot:
+        reading = pilot.app.screen.query_one("#reading", Input)
+        assert reading.disabled is True
+
+        await _on_meat(pilot)
+        assert reading.disabled is False
+
+        await pilot.click("#reading")
+        await pilot.pause()
+        assert pilot.app.focused is reading
+
+
+async def test_tab_from_pinyin_goes_to_translation(source_tree):
+    app = _HostApp(source_tree)
+    async with app.run_test() as pilot:
+        await _on_meat(pilot)
+        await pilot.click("#reading")
+        await pilot.pause()
+
+        await pilot.press("tab")
+        await pilot.pause()
+
+        assert pilot.app.focused.id == "translation"
+
+
+async def test_a_clicked_pinyin_field_takes_typing(source_tree):
+    app = _HostApp(source_tree)
+    async with app.run_test() as pilot:
+        await _on_meat(pilot)
+        await pilot.click("#reading")
+        await pilot.pause()
+
+        await pilot.press("q", "i", "n", "g", "1")
+        await pilot.pause()
+
+        assert _value(pilot, "reading") == "qing1"
+
+
+async def test_a_hand_edit_survives_a_word_change(source_tree):
+    app = _HostApp(source_tree)
+    async with app.run_test() as pilot:
+        await _on_meat(pilot)
+        await _fill(pilot, word="行")
+        assert _value(pilot, "reading") == "xing2"
+
+        await _fill(pilot, reading="hang2", word="行人")
+
+        assert _value(pilot, "reading") == "hang2"
+
+
+async def test_an_emptied_pinyin_field_follows_the_word_again(source_tree):
+    app = _HostApp(source_tree)
+    async with app.run_test() as pilot:
+        await _on_meat(pilot)
+        await _fill(pilot, word="行", reading="hang2")
+
+        await _fill(pilot, reading="")
+        await _fill(pilot, word="你好")
+
+        assert _value(pilot, "reading") == "ni3hao3"
+
+
+async def test_a_pinyin_field_edited_back_to_the_guess_follows_the_word(source_tree):
+    app = _HostApp(source_tree)
+    async with app.run_test() as pilot:
+        await _on_meat(pilot)
+        await _fill(pilot, word="行", reading="hang2")
+
+        await _fill(pilot, reading="xing2")
+        await _fill(pilot, word="你好")
+
+        assert _value(pilot, "reading") == "ni3hao3"
+
+
+async def test_create_ends_a_hand_edit(source_tree):
+    app = _HostApp(source_tree)
+    async with app.run_test() as pilot:
+        await _on_meat(pilot)
+        await _fill(pilot, word="行", reading="hang2", translation="row")
+        pilot.app.screen._create_entry()
+        await pilot.pause()
+
+        await _fill(pilot, word="你好")
+
+        assert _value(pilot, "reading") == "ni3hao3"
+
+
+async def test_moving_to_another_target_ends_a_hand_edit(source_tree):
+    app = _HostApp(source_tree)
+    async with app.run_test() as pilot:
+        await _on_meat(pilot)
+        await _fill(pilot, word="行", reading="hang2")
+
+        tree = pilot.app.screen.query_one("#entry-tree", EntryTree)
+        _select(tree, _find_one(tree.root, "uncategorized", file_name="Food.md"))
+        await pilot.pause()
+        await _fill(pilot, word="你好")
+
+        assert _value(pilot, "reading") == "ni3hao3"
+
+
+def _meat_entries(source_tree):
+    path = source_tree / "Vocabulary" / "Food.md"
+    deck, _ = parse(path.read_text(encoding="utf-8"), path.stem, kind=CHARACTER_PHONETIC)
+    return next(c for c in deck.categories if c.name == "Meat").entries
+
+
+async def test_create_stores_a_hand_edit_as_numbered_pinyin(source_tree):
+    app = _HostApp(source_tree)
+    async with app.run_test() as pilot:
+        await _on_meat(pilot)
+        await _fill(pilot, word="小/中/大號", reading="xiǎo/zhōng/dàhào", translation="sizes")
+
+        pilot.app.screen._create_entry()
+        await pilot.pause()
+
+        assert _meat_entries(source_tree)[-1].reading == "xiao3/zhong1/da4hao4"
+        assert _value(pilot, "word") == ""
+
+
+@pytest.mark.parametrize(
+    "word, typed, message",
+    [
+        ("你好", "xyz3", '"xyz3" isn\'t pinyin.'),
+        ("你好", "ni3", '"ni3" has 1 syllable for 2 hanzi.'),
+        ("你", "ni3hao3", '"ni3hao3" has 2 syllables for 1 hanzi.'),
+    ],
+)
+async def test_create_refuses_a_bad_hand_edit(source_tree, word, typed, message):
+    app = _HostApp(source_tree)
+    path = source_tree / "Vocabulary" / "Food.md"
+    before = path.read_bytes()
+    async with app.run_test() as pilot:
+        await _on_meat(pilot)
+        await _fill(pilot, word=word, reading=typed, translation="hello", note="a note")
+
+        pilot.app.screen._create_entry()
+        await pilot.pause()
+
+        assert _errors(pilot) == [message]
+        assert path.read_bytes() == before
+        assert _value(pilot, "word") == word
+        assert _value(pilot, "reading") == typed
+        assert _value(pilot, "translation") == "hello"
+        assert _value(pilot, "note") == "a note"
+        assert pilot.app.focused.id == "reading"
+
+
+async def test_a_refusal_shows_the_reading_exactly_as_typed(source_tree):
+    app = _HostApp(source_tree)
+    async with app.run_test() as pilot:
+        await _on_meat(pilot)
+        await _fill(pilot, word="你", reading="[bold]")
+
+        pilot.app.screen._create_entry()
+        await pilot.pause()
+
+        assert _errors(pilot) == ['"[bold]" isn\'t pinyin.']
+
+
+async def test_an_untouched_guess_is_saved_without_checks(source_tree):
+    """A word with no hanzi has an empty guess, and nothing is counted."""
+    app = _HostApp(source_tree)
+    async with app.run_test() as pilot:
+        await _on_meat(pilot)
+        await _fill(pilot, word="T", translation="the letter")
+
+        pilot.app.screen._create_entry()
+        await pilot.pause()
+
+        assert _errors(pilot) == []
+        assert _meat_entries(source_tree)[-1].word == "T"
+
+
+def _grammar_category(grammar_tree):
+    path = grammar_tree / "Grammar" / "G.md"
+    deck, _ = parse(path.read_text(encoding="utf-8"), "G", kind=CHARACTER_PHONETIC, grammar=True)
+    return deck.categories[0]
+
+
+async def _on_conjunctions(pilot):
+    tree = pilot.app.screen.query_one("#entry-tree", EntryTree)
+    _select(tree, _find_one(tree.root, "category", file_name="G.md", category_name="Conjunctions"))
+    await pilot.pause()
+
+
+async def test_grammar_entry_stores_a_normalised_hand_edit(grammar_tree):
+    app = _HostApp(grammar_tree)
+    async with app.run_test() as pilot:
+        await _on_conjunctions(pilot)
+        await _fill(pilot, word="也", reading="yě", translation="also")
+
+        pilot.app.screen._create_entry()
+        await pilot.pause()
+
+        assert _grammar_category(grammar_tree).entries[-1].reading == "ye3"
+
+
+async def test_grammar_entry_under_an_existing_subtitle_refuses_a_bad_hand_edit(grammar_tree):
+    app = _HostApp(grammar_tree)
+    path = grammar_tree / "Grammar" / "G.md"
+    before = path.read_bytes()
+    async with app.run_test() as pilot:
+        await _on_conjunctions(pilot)
+        pilot.app.screen.query_one("#subtitle", SelectField).value = "existing subtitle"
+        await pilot.pause()
+        await _fill(pilot, word="也", reading="xyz3", translation="also")
+
+        pilot.app.screen._create_entry()
+        await pilot.pause()
+
+        assert _errors(pilot) == ['"xyz3" isn\'t pinyin.']
+        assert path.read_bytes() == before
+        assert _value(pilot, "reading") == "xyz3"
+
+
+async def _on_new_subtitle(pilot, name):
+    await _on_conjunctions(pilot)
+    pilot.app.screen.query_one("#subtitle", SelectField).value = NEW_SUBTITLE
+    await pilot.pause()
+    await _fill(pilot, **{"subtitle-name": name})
+
+
+async def test_new_subtitle_stores_a_normalised_hand_edit(grammar_tree):
+    app = _HostApp(grammar_tree)
+    async with app.run_test() as pilot:
+        await _on_new_subtitle(pilot, "fresh")
+        await _fill(pilot, word="也", reading="yě", translation="also")
+
+        pilot.app.screen._create_entry()
+        await pilot.pause()
+
+        fresh = next(s for s in _grammar_category(grammar_tree).subtitles if s.name == "fresh")
+        assert [e.reading for e in fresh.entries] == ["ye3"]
+
+
+async def test_new_subtitle_refusal_creates_no_subtitle(grammar_tree):
+    app = _HostApp(grammar_tree)
+    path = grammar_tree / "Grammar" / "G.md"
+    before = path.read_bytes()
+    async with app.run_test() as pilot:
+        await _on_new_subtitle(pilot, "fresh")
+        await _fill(pilot, word="也", reading="ni3hao3", translation="also")
+
+        pilot.app.screen._create_entry()
+        await pilot.pause()
+
+        assert _errors(pilot) == ['"ni3hao3" has 2 syllables for 1 hanzi.']
+        assert path.read_bytes() == before
+        assert _value(pilot, "subtitle-name") == "fresh"
+
+
+async def test_new_subtitle_with_no_word_does_not_check_the_reading(grammar_tree):
+    app = _HostApp(grammar_tree)
+    async with app.run_test() as pilot:
+        await _on_new_subtitle(pilot, "fresh")
+        await _fill(pilot, reading="xyz3")
+
+        pilot.app.screen._create_entry()
+        await pilot.pause()
+
+        assert _errors(pilot) == []
+        assert [s.name for s in _grammar_category(grammar_tree).subtitles][-1] == "fresh"

@@ -22,7 +22,8 @@ class LanguageKind:
     """How an entry is shaped and rendered, for every language of the kind.
 
     `reading_label` is `None` when the kind has no reading. When `guess_reading`
-    is set, the reading field is read-only and filled in as the user types.
+    is set, the reading field is filled in as the user types, until it is edited
+    by hand.
     """
 
     name: str
