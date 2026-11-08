@@ -238,6 +238,19 @@ so it is restated here). Sprint 5 M4 cleared the kitty image when the preview
 switched to a message and when the screen was left. M7 also clears it when a
 screen opens on top, and redraws it when that screen closes.
 
+### M8 added after reinstalling, 2026-10-12
+
+The dev reinstalled on their own Mac (after removing the dependencies) and saw
+step 1 list xeCJK as *missing* with no button to install it. Their request:
+"remove it from the list". Settled in the spec conversation:
+
+| Decision | Rationale |
+| --- | --- |
+| **Both language rows leave step 1**, xeCJK and the CJK font | Dev's choice, over dropping only xeCJK or showing them once a language is chosen. They are the same kind of row, and step 1 comes before the language step. |
+| **`vimdiomas doctor` keeps listing them** | Recommended by the agent, accepted. `doctor` is the full report and has no language step after it. |
+| **Everything else is unchanged**: *Next*, *Install missing*, step 3's check and offer, Settings › Add a language | Dev's choice, over adding a note on step 1 in place of the rows. |
+| **Spec'd in this sprint**, not left for Sprint 9 (as M5; renumbered M8 on 2026-11-08, when its branch was merged after another M5 had landed) | Dev's choice, over closing Sprint 8 first. The sprint's close waits for it. |
+
 ## Assumptions
 
 Taken as given by this sprint; not verified in code or stated in the roadmap.
