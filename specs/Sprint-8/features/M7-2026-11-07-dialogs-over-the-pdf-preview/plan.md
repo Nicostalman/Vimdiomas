@@ -6,8 +6,11 @@ it. Section numbers (§) refer to [`requirements.md`](requirements.md).
 ## 1. The page under a dialog (§1)
 
 - `tui/screens/inspect.py`: `on_screen_suspend` clears the image;
-  `on_screen_resume` calls `_update_preview(self._preview_data)`;
-  `_show_preview_image` writes the image only when `self.is_current`.
+  `on_screen_resume` calls `_update_preview` with the tree's cursor node after
+  the next refresh; `_show_preview_image` writes the image only when
+  `self.app.screen is self`.
+- `_rebuild_tree` and the redraw read the cursor by line, and a rename's or
+  new file's compile refreshes the preview when it ends (§4).
 - Update `PdfPreview`'s and `InspectTreeScreen`'s docstrings/comments where
   they list when the image is cleared.
 - Tests 1–5 of §3.
@@ -23,7 +26,7 @@ it. Section numbers (§) refer to [`requirements.md`](requirements.md).
 - `design.md`, *Inspect Tree's PDF preview pane*: the page is hidden while a
   dialog is open and comes back when it closes; this screen's notifications
   are bottom-left, and why. *Implementation*: the suspend/resume hooks and the
-  `is_current` guard, next to the existing paragraph on clearing the image.
+  current-screen guard, next to the existing paragraph on clearing the image.
 - Run the app in a kitty-graphics terminal: `n`, `r`, `m`, `d` over a shown
   page, escape and confirm, and a notification. Note what was seen in
   `validation.md` §2.
