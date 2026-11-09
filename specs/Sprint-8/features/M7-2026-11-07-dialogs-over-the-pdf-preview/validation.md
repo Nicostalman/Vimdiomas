@@ -5,14 +5,14 @@ The acceptance bar. Section numbers (§) refer to
 
 ## 1. Automated
 
-- [ ] `uv run --extra dev pytest` passes in full.
-- [ ] §3's tests 1–7 exist and pass: each of `d`/`r`/`n`/`m` writes a delete
+- [x] `uv run --extra dev pytest` passes in full.
+- [x] §3's tests 1–7 exist and pass: each of `d`/`r`/`n`/`m` writes a delete
       escape when it opens; escape and confirm each write an image escape
       after the dialog closes; nothing is drawn while a dialog is open, a
       resize included; MD mode writes no image; Inspect Tree's toasts sit
       inside `#inspect-panel` at two terminal sizes; another screen's toasts
       are still bottom-right.
-- [ ] `test_q_clears_any_kitty_image_before_leaving` and the rest of
+- [x] `test_q_clears_any_kitty_image_before_leaving` and the rest of
       `tests/test_tui_inspect_tree.py` pass unchanged.
 
 ## 2. By the agent, in the real app
@@ -39,7 +39,11 @@ In a terminal with kitty graphics, on a tree whose file has a compiled PDF:
 - [ ] Delete then `u`: both notifications readable, bottom-left.
 - [ ] MD mode and leaving the screen look as they did before.
 
+Merged on the dev's word on 2026-11-09. The agent had no terminal that shows
+the page, so §2 was not run by the agent, and §2 and §3 are left unticked here
+rather than assumed.
+
 ## 4. Spec check
 
-- [ ] `requirements.md`, `plan.md`, `design.md` and the code agree; anything
+- [x] `requirements.md`, `plan.md`, `design.md` and the code agree; anything
       that changed during implementation is recorded in `requirements.md` §4.

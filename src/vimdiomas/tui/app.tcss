@@ -231,6 +231,16 @@ InspectTreeScreen InspectTree {
     width: 50%;
 }
 
+/* Notifications stay over the tree panel on this screen (Sprint 8 M7): the
+   preview panel can hold a kitty image, which Textual can't paint over. */
+InspectTreeScreen ToastHolder {
+    align-horizontal: left;
+}
+
+InspectTreeScreen Toast {
+    max-width: 45%;
+}
+
 /* The warnings block (Sprint 6 M9): above the preview's own content, dim and
    sized to what it holds, so a clean file's preview is exactly as it was. */
 #preview-warnings {

@@ -69,7 +69,8 @@ This applies to:
 ### 1.2 Nothing is drawn while it is not the current screen
 
 `_show_preview_image` still sets the displays (message hidden, image shown),
-but it writes the image only if `self.is_current`. This covers:
+but it writes the image only if `self.app.screen is self` (not
+`Screen.is_current`, see §4). This covers:
 
 - a rasterise worker that was already running when the dialog opened, and
   finishes while it is open;
@@ -84,8 +85,8 @@ left alone. The dialog covers them correctly already.
 ### 1.3 Redrawn when the screen comes back
 
 `InspectTreeScreen` handles `events.ScreenResume` by calling
-`self._update_preview(self._preview_data)`. This uses the cursor's node at
-that moment, so:
+`self._update_preview` with the tree's cursor node, after the next refresh
+(see §4). This uses the cursor's node at that moment, so:
 
 - **Escape** (cancel) brings back the same page.
 - **Confirm** brings back the page for wherever the dialog's callback left the
@@ -172,8 +173,36 @@ The existing tests pass unchanged.
 
 ## 4. Found during implementation
 
-Nothing yet. Anything that comes up while building this is written here as it
-happens.
+- **`Screen.is_current` can't be the guard (2026-11-09).** Textual counts a
+  screen as current when it is in `app._background_screens`, which is any
+  screen still visible behind a translucent one. `ModalScreen` is translucent,
+  so Inspect Tree stays `is_current` under its own dialogs. §1.2 checks
+  `self.app.screen is self` instead.
+- **The redraw waits for a refresh (2026-11-09).** A subclass's handler runs
+  before `Screen._on_screen_resume`, which is what applies a resize that
+  happened while the dialog was open. Redrawing straight from the handler would
+  read the pane's old size, so it goes through `call_after_refresh`, as
+  `on_mount`'s redraw does.
+- **The cursor is read by line, not from `cursor_node` or `_preview_data`
+  (2026-11-09).** A rename calls `_rebuild_tree()` with no path to select, so
+  the cursor stays on the same line and no new node is highlighted. After the
+  rebuild, `Tree.cursor_node` is still the old node until the tree next lays
+  itself out, so the preview looked for the file under its old name and the
+  renamed file's page didn't come back. `_rebuild_tree` and the redraw both ask
+  `tree.get_node_at_line(tree.cursor_line)` now. The test in §3 (confirm) caught
+  it.
+
+- **A rename or new file refreshes the preview when its compile ends
+  (2026-11-09).** Both compile in a worker, and a rename deletes the old PDF
+  first, so at the moment the dialog closes there is no PDF and the pane says
+  *No compiled PDF for this file.* Left alone, confirm would not bring the page
+  back (§1.3) until the cursor moved. `_compile_and_refresh` redraws for the
+  cursor's node once the compile is done, unless the screen has been left or a
+  dialog is open. MD mode's recompile after nvim is unchanged.
+
+- **The first `ScreenResume` is left alone (2026-11-09).** It adds one more
+  redraw when the screen opens, next to `on_mount`'s. A trace showed the page
+  written once, so the skip §1.3 allowed for wasn't needed.
 
 ## Out of scope
 

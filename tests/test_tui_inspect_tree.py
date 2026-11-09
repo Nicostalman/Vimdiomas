@@ -4,6 +4,7 @@ import pytest
 from textual.app import App
 
 from vimdiomas.languages import CHARACTER_PHONETIC
+from vimdiomas.tui.app import VimdiomasApp
 from vimdiomas.tui.screens.inspect import InspectTree, InspectTreeScreen
 from vimdiomas.tui.screens.panels import Panel
 
@@ -1819,3 +1820,210 @@ async def test_renaming_an_unreadable_file_moves_it_and_warns(bad_tree, monkeypa
         assert note.message.startswith("Worse was renamed, but its title was left as it is: ")
         assert "could not be read: " in note.message
         assert _errors(pilot) == []
+
+
+# Sprint 8 M7: dialogs over the PDF preview.
+
+_IMAGE = "a=T"
+_CLEAR = "\x1b_Ga=d;"
+
+
+@pytest.fixture
+def shows_page(monkeypatch):
+    """Inspect Tree believes it can draw a page, with no poppler needed."""
+    inspect = "vimdiomas.tui.screens.inspect"
+    monkeypatch.setattr(f"{inspect}.supports_kitty_graphics", lambda: True)
+    monkeypatch.setattr(f"{inspect}.pdftoppm_available", lambda: True)
+    monkeypatch.setattr(
+        f"{inspect}.RasterCache.get_or_rasterise", lambda self, pdf, width, height: b"png"
+    )
+
+
+async def _settle(pilot):
+    await pilot.pause()
+    await pilot.app.workers.wait_for_complete()
+    await pilot.pause()
+
+
+async def _page_on_food(pilot) -> list[str]:
+    """The cursor on Food with its page shown; returns the terminal's writes."""
+    await pilot.pause()
+    _select(pilot.app.screen.query_one("#inspect-tree", InspectTree), "Food")
+    await _settle(pilot)
+    writes: list[str] = []
+    original = pilot.app._driver.write
+    pilot.app._driver.write = lambda data: (writes.append(data), original(data))[0]
+    return writes
+
+
+def _images(writes: list[str]) -> int:
+    return sum(_IMAGE in write for write in writes)
+
+
+@pytest.mark.parametrize("key", ["d", "r", "n", "m"])
+async def test_each_dialog_clears_the_page(source_tree, shows_page, key):
+    app = _HostApp(source_tree)
+    async with app.run_test() as pilot:
+        writes = await _page_on_food(pilot)
+        await pilot.press(key)
+        await _settle(pilot)
+
+        assert not isinstance(pilot.app.screen, InspectTreeScreen)
+        assert any(_CLEAR in write for write in writes)
+        assert _images(writes) == 0
+
+
+@pytest.mark.parametrize("key", ["d", "r", "n", "m"])
+async def test_escape_brings_the_page_back(source_tree, shows_page, key):
+    app = _HostApp(source_tree)
+    async with app.run_test() as pilot:
+        writes = await _page_on_food(pilot)
+        await pilot.press(key)
+        await _settle(pilot)
+        await pilot.press("escape")
+        await _settle(pilot)
+
+        assert isinstance(pilot.app.screen, InspectTreeScreen)
+        assert pilot.app.screen._preview_data.path.name == "Food.md"
+        assert _images(writes) >= 1
+
+
+async def test_confirming_a_rename_brings_the_new_page_back(source_tree, shows_page, monkeypatch):
+    monkeypatch.setattr(
+        "vimdiomas.tui.screens.base.compile_file",
+        lambda src, dst, **kwargs: dst.write_bytes(b"%PDF-fake"),
+    )
+    app = _HostApp(source_tree)
+    async with app.run_test() as pilot:
+        writes = await _page_on_food(pilot)
+        await pilot.press("r")
+        await _settle(pilot)
+        pilot.app.screen.query_one("Input").value = ""
+        await pilot.press(*"Meals", "enter")
+        await _settle(pilot)
+        await _settle(pilot)
+
+        assert isinstance(pilot.app.screen, InspectTreeScreen)
+        assert pilot.app.screen._preview_data.path.name == "Meals.md"
+        assert _images(writes) >= 1
+
+
+async def test_confirming_a_new_directory_brings_the_page_back(source_tree, shows_page):
+    app = _HostApp(source_tree)
+    async with app.run_test() as pilot:
+        writes = await _page_on_food(pilot)
+        await pilot.press("n")
+        await _settle(pilot)
+        await pilot.press(*"Zebra", "enter")
+        await _settle(pilot)
+
+        assert (source_tree / "Zebra").is_dir()
+        assert pilot.app.screen._preview_data.path.name == "Food.md"
+        assert _images(writes) >= 1
+
+
+async def test_a_compile_ending_under_a_dialog_draws_nothing(source_tree, shows_page):
+    app = _HostApp(source_tree)
+    async with app.run_test() as pilot:
+        writes = await _page_on_food(pilot)
+        await pilot.press("n")
+        await _settle(pilot)
+
+        pilot.app.screen_stack[-2]._refresh_preview_after_compile()
+        await _settle(pilot)
+
+        assert _images(writes) == 0
+
+
+async def test_nothing_is_drawn_while_a_dialog_is_open(source_tree, shows_page):
+    app = _HostApp(source_tree)
+    async with app.run_test(size=(100, 30)) as pilot:
+        writes = await _page_on_food(pilot)
+        await pilot.press("n")
+        await _settle(pilot)
+        inspect_screen = pilot.app.screen_stack[-2]
+        assert isinstance(inspect_screen, InspectTreeScreen)
+
+        await pilot.resize_terminal(120, 40)
+        await _settle(pilot)
+        inspect_screen._update_preview(inspect_screen._preview_data)
+        await _settle(pilot)
+        assert _images(writes) == 0
+
+        await pilot.press("escape")
+        await _settle(pilot)
+        assert _images(writes) >= 1
+
+
+async def test_a_page_that_finishes_rendering_under_a_dialog_is_not_drawn(
+    source_tree, shows_page
+):
+    from textual.geometry import Region
+
+    app = _HostApp(source_tree)
+    async with app.run_test() as pilot:
+        writes = await _page_on_food(pilot)
+        await pilot.press("n")
+        await _settle(pilot)
+
+        pilot.app.screen_stack[-2]._show_preview_image(b"png", Region(1, 1, 10, 10))
+        await pilot.pause()
+
+        assert _images(writes) == 0
+
+
+async def test_md_mode_draws_no_page_around_a_dialog(source_tree, shows_page):
+    app = _HostApp(source_tree)
+    async with app.run_test() as pilot:
+        writes = await _page_on_food(pilot)
+        await pilot.press("tab")
+        await _settle(pilot)
+        await pilot.press("n")
+        await _settle(pilot)
+        await pilot.press("escape")
+        await _settle(pilot)
+
+        assert _images(writes) == 0
+
+
+class _StyledHostApp(_HostApp):
+    """Toast placement comes from the app's own stylesheet."""
+
+    CSS_PATH = VimdiomasApp.CSS_PATH
+
+
+@pytest.mark.parametrize("size", [(100, 30), (101, 31), (200, 50), (60, 24)])
+async def test_toasts_stay_inside_the_tree_panel(source_tree, size):
+    app = _StyledHostApp(source_tree)
+    async with app.run_test(size=size, notifications=True) as pilot:
+        await pilot.pause()
+        tree = pilot.app.screen.query_one("#inspect-tree", InspectTree)
+        tree.move_cursor(tree.root)
+        await pilot.pause()
+        await pilot.press("d")
+        await pilot.pause()
+
+        panel = pilot.app.screen.query_one("#inspect-panel", Panel)
+        toast = pilot.app.screen.query_one("Toast")
+        assert toast.region.x < size[0] // 2
+        assert toast.region.right <= panel.region.right
+
+
+async def test_other_screens_keep_their_toasts_bottom_right(source_tree):
+    from vimdiomas.tui.screens.browse import BrowseScreen
+
+    class _BrowseApp(App):
+        CSS_PATH = VimdiomasApp.CSS_PATH
+
+        def on_mount(self) -> None:
+            self.push_screen(BrowseScreen(source_tree, kind=CHARACTER_PHONETIC))
+
+    app = _BrowseApp()
+    async with app.run_test(size=(100, 30), notifications=True) as pilot:
+        await pilot.pause()
+        pilot.app.screen.notify("Hello")
+        await pilot.pause()
+
+        toast = pilot.app.screen.query_one("Toast")
+        assert toast.region.x >= 45
+        assert toast.region.right >= 98

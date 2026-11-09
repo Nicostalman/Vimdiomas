@@ -357,6 +357,47 @@ class InspectTreeScreen(PanelScreen):
     def on_resize(self, event: events.Resize) -> None:
         self._update_preview(self._preview_data)
 
+    def on_screen_suspend(self) -> None:
+        """A screen opened on top: the page goes, or it would cover the dialog.
+
+        Textual can't paint over a kitty image, so any screen pushed here has
+        to have the page out of its way (Sprint 8 M7)."""
+        self.query_one("#preview-image", PdfPreview).clear_image()
+
+    def on_screen_resume(self) -> None:
+        """The screen on top closed: bring the page back for the cursor's node.
+
+        After the next refresh, because this handler runs before Textual's
+        own, which is what applies a resize made while the dialog was open —
+        until then the pane still has its old size."""
+        self.call_after_refresh(lambda: self._update_preview(self._cursor_data()))
+
+    def _compile_and_refresh(self, source_path: Path, pdf_path: Path) -> None:
+        """A worker's compile of a renamed or new file, whose PDF didn't exist
+        when the preview last looked: show the page once there is one."""
+        autocompile_one(
+            self.app,
+            source_path,
+            pdf_path,
+            kind=self.kind,
+            grammar=is_grammar(source_path, self.tree_root),
+        )
+        self.app.call_from_thread(self._refresh_preview_after_compile)
+
+    def _refresh_preview_after_compile(self) -> None:
+        # Left the screen: nothing to refresh. A dialog open: its closing does.
+        if self.app.screen is self:
+            self._update_preview(self._cursor_data())
+
+    def _cursor_data(self) -> NodeData | None:
+        """What the tree's cursor is on. Asked for by line, because after a
+        rebuild `Tree.cursor_node` is still the old node until the tree next
+        lays itself out, so a renamed file would be looked up by its old name."""
+        tree = self.query_one("#inspect-tree", InspectTree)
+        # -1, no cursor yet, would index the tree's last line.
+        node = tree.get_node_at_line(tree.cursor_line) if tree.cursor_line >= 0 else None
+        return node.data if node is not None else None
+
     def action_back_or_quit(self) -> None:
         # A kitty image sits in its own layer above the text grid, outside
         # Textual's own repaint, so leaving it undeleted would leave it
@@ -413,10 +454,7 @@ class InspectTreeScreen(PanelScreen):
         node = _node_for(tree, select_path) if select_path is not None else None
         if node is not None:
             tree.move_cursor(node)
-        self._update_preview(
-            node.data if node is not None
-            else (tree.cursor_node.data if tree.cursor_node else None)
-        )
+        self._update_preview(node.data if node is not None else self._cursor_data())
 
     def action_toggle_mode(self) -> None:
         self.mode = "md" if self.mode == "pdf" else "pdf"
@@ -461,7 +499,11 @@ class InspectTreeScreen(PanelScreen):
         self.query_one("#preview-message", Static).display = False
         image = self.query_one("#preview-image", PdfPreview)
         image.display = True
-        image.show_image(png_bytes, region)
+        # A render finishing, or a resize, while a dialog is open: the page
+        # waits for `on_screen_resume`. Not `self.is_current`, which stays true
+        # for a screen visible behind a translucent dialog.
+        if self.app.screen is self:
+            image.show_image(png_bytes, region)
 
     def _apply_if_current(self, generation: int, callback: Callable[[], None]) -> None:
         if generation == self._preview_generation:
@@ -762,14 +804,7 @@ class InspectTreeScreen(PanelScreen):
         if had_pdf:
             old_pdf.unlink()
             self.app.run_worker(
-                partial(
-                    autocompile_one,
-                    self.app,
-                    new_md,
-                    new_pdf,
-                    kind=self.kind,
-                    grammar=is_grammar(new_md, self.tree_root),
-                ),
+                partial(self._compile_and_refresh, new_md, new_pdf),
                 thread=True,
                 exclusive=False,
                 group="autocompile",
@@ -819,14 +854,7 @@ class InspectTreeScreen(PanelScreen):
                 self._report_os_error(f"Could not create {name}", exc)
                 return
             self.app.run_worker(
-                partial(
-                    autocompile_one,
-                    self.app,
-                    new_md,
-                    new_pdf,
-                    kind=self.kind,
-                    grammar=is_grammar(new_md, self.tree_root),
-                ),
+                partial(self._compile_and_refresh, new_md, new_pdf),
                 thread=True,
                 exclusive=False,
                 group="autocompile",

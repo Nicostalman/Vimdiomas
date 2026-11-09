@@ -610,6 +610,19 @@ stale in-flight one when the cursor moves again, so a fast cursor never
 stalls the tree waiting on a render whose result would be thrown away
 anyway.
 
+The rendered page sits above everything Textual draws, so nothing can be shown
+over it. While any screen is open over Inspect Tree (its dialogs, or anything
+else), the page is hidden. It comes back when that screen closes, for whatever
+the tree's cursor is on then. For the same reason this is the one screen whose
+notifications are at the bottom-left, over the tree panel; everywhere else they
+are at the bottom-right.
+
+*Implementation:* `InspectTreeScreen` clears the image on `ScreenSuspend` and
+redraws on `ScreenResume`. `_show_preview_image` only writes the image when
+`app.screen` is this screen, so a render or a resize that lands while a dialog
+is open draws nothing. `Screen.is_current` can't be used for that, since it stays
+true for a screen visible behind a translucent dialog.
+
 ## The compiled notebook
 
 ### Implementation
