@@ -238,6 +238,17 @@ so it is restated here). Sprint 5 M4 cleared the kitty image when the preview
 switched to a message and when the screen was left. M7 also clears it when a
 screen opens on top, and redraws it when that screen closes.
 
+**Settled when M7 merged, 2026-11-09** (detail in its `requirements.md` §4):
+
+| Decision | Rationale |
+| --- | --- |
+| **The guard is `app.screen is self`, not `Screen.is_current`** | `is_current` stays true for a screen visible behind a translucent dialog, which is exactly when the page must not be drawn. |
+| **The preview reads the tree's cursor by line after a rebuild** | `Tree.cursor_node` is the old node until the next layout, so a renamed file was looked up under its old name. |
+| **A rename or new file refreshes the preview when its compile ends** | Added so that confirming a rename brings the page back. A rename deletes the old PDF first, so the pane would otherwise say there is none until the cursor moved. |
+
+Merged on the dev's word. `validation.md` §2 and §3, the checks in a real
+kitty-graphics terminal, are not recorded as run.
+
 ### M8 added after reinstalling, 2026-10-12
 
 The dev reinstalled on their own Mac (after removing the dependencies) and saw
